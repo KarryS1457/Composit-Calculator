@@ -1,0 +1,221 @@
+import tkinter as tk
+from PIL import Image, ImageTk
+import core.calculations as calc
+import core.data as data
+from ui.menu import MainMenu
+from ui.tab_weld import TabWeld
+from ui.tab_lathe import TabLathe
+from ui.tab_lathe_otp import TabLatheOtp
+# Добавь импорты для других табов, когда переделаешь их:
+# from ui.tab_turning import TabTurning
+
+class AppPresenter:
+    def __init__(self, model, view):
+        self.model = model
+        self.view = view
+        self.typed_buffer = ""
+        self.current_screen = None
+
+        # 1. Регистрируем валидацию и сохраняем её в self.vcmd
+        self.vcmd = (self.view.register(self.model.validate_numeric), '%P')
+        
+        # Передаем её во View (теперь с self.)
+        self.view.set_vcmd(self.vcmd) 
+
+
+        # 2. Подписываемся на глобальные клавиши
+        self.view.bind_all("<Key>", self._handle_keypress)
+
+
+    def start(self):
+        """Запуск приложения"""
+        self.show_main_menu()
+        self.view.mainloop()
+
+    # --- НАВИГАЦИЯ ---
+
+    def show_main_menu(self):
+        """Переход в главное меню"""
+        self.view.clear_screen()
+        self.current_screen = MainMenu(self.view.container, self)
+        self.current_screen.pack(fill="both", expand=True)
+
+    def show_weld_tab(self):
+        """Переход к расчету сварки"""
+        self.view.clear_screen()
+        self.current_screen = TabWeld(self.view.container, self)
+        self.current_screen.pack(fill="both", expand=True)
+
+    def show_lathe_menu(self):
+        """Открывает список изделий для токарки"""
+        self.view.clear_screen()
+        self.current_screen = TabLathe(self.view.container, self)
+        self.current_screen.pack(fill="both", expand=True)
+
+    def show_lathe_detail(self, screen_class):
+        """Открывает конкретный расчет (например, Фланец)"""
+        self.view.clear_screen()
+        # Создаем экран из переданного класса
+        # Передаем self (презентер) как контроллер для этих экранов
+        self.current_screen = screen_class(self.view.container, self)
+        self.current_screen.pack(fill="both", expand=True)
+
+    def show_lathe_otp_menu(self):
+        """Открывает список изделий для токарки отп"""
+        self.view.clear_screen()
+        self.current_screen = TabLatheOtp(self.view.container, self)
+        self.current_screen.pack(fill="both", expand=True)
+
+    def show_lathe_otp_detail(self, screen_class):
+        """Открывает конкретный расчет"""
+        self.view.clear_screen()
+        # Создаем экран из переданного класса
+        # Передаем self (презентер) как контроллер для этих экранов
+        self.current_screen = screen_class(self.view.container, self)
+        self.current_screen.pack(fill="both", expand=True)
+
+    # --- ЛОГИКА РАСЧЕТОВ ---
+
+    def handle_weld_calculation(self, raw_data):
+        """Метод, который вызывает TabWeld при нажатии 'РАССЧИТАТЬ'"""
+        try:
+            # Получаем коэффициенты из данных (слой Data)
+            k_lp = [0.9, 1.0, 1.3][raw_data["lp_idx"]]
+            k_pos = [1.0, 1.5, 2.0][raw_data["pos_idx"]]
+            k_posture = [0.95, 1.0, 1.15][raw_data["posture_idx"]]
+
+            # Вызываем расчетную логику (слой Calculations)
+            result = calc.calculate_weld_logic(
+                raw_data["gost"], raw_data["s"], raw_data["l_mm"], raw_data["m"],
+                k_lp, k_pos, k_posture, data.WELD_DATA, data.CHAMFER_DATA
+            )
+
+            # Форматируем результат в красивый текст
+            minutes = result["total_sec"] // 60
+            seconds = result["total_sec"] % 60
+            
+            res_text = (
+                f"РЕЗУЛЬТАТ (Шов {result['gost']}, S={result['s']:.1f}мм)\n"
+                f"-----------------------------------\n"
+                f"Подготовка: {result['prep']:.2f} мин\n"
+                f"Снятие фасок: {result['chamfer']:.2f} мин\n"
+                f"Время сварки: {result['weld']:.2f} мин\n"
+                f"-----------------------------------\n"
+                f"ОБЩАЯ НОРМА: {minutes} мин {seconds} сек"
+            )
+
+            # Отправляем текст обратно во View для отображения
+            self.current_screen.show_results(res_text)
+
+        except Exception as e:
+            self.view.show_error(f"Сбой расчета: {e}")
+
+    def handle_lathe_calculation(self, item_type, raw_data):
+        # 1. Поиск станков
+        main_res, alternatives = calc.calculate_turning_parameters(raw_data['D1'])
+        
+        if not main_res:
+            self.current_screen.show_results("ОШИБКА: Станок не найден")
+            return
+
+        # Вспомогательная функция для форматирования вывода
+        def format_time(seconds):
+            minutes = seconds / 60
+            m = int(seconds // 60)
+            s = int(seconds % 60)
+            return f"{seconds:.2f} сек. ({minutes:.2f} мин. или {m}м {s}с)"
+
+        # 2. Расчет для основного станка
+        main_time_sec = calc.calculate_lathe_time(item_type, raw_data, main_res)
+        
+        res_text = (
+            f"ОСНОВНОЙ СТАНОК: {main_res['machine']}\n"
+            f"Обороты (D): {main_res['rpm']} об/мин\n"
+            f"ВРЕМЯ ИТОГО: {format_time(main_time_sec)}\n"
+            f"{'-'*40}\n"
+        )
+
+        # 3. Расчет для альтернатив
+        if alternatives:
+            res_text += "АЛЬТЕРНАТИВНЫЕ ВАРИАНТЫ:\n"
+            for alt in alternatives:
+                alt_time_sec = calc.calculate_lathe_time(item_type, raw_data, alt)
+                res_text += f"- {alt['machine']}: {format_time(alt_time_sec)}\n"
+
+        self.current_screen.show_results(res_text)
+
+    def handle_lathe_otp_calculation(self, item_type, raw_data):
+        # 1. Поиск станков
+        main_res, alternatives = calc.calculate_turning_parameters(raw_data['D1'])
+        
+        if not main_res:
+            self.current_screen.show_results("ОШИБКА: Станок не найден")
+            return
+
+        # Вспомогательная функция для форматирования вывода
+        def format_time(seconds):
+            minutes = seconds / 60
+            m = int(seconds // 60)
+            s = int(seconds % 60)
+            return f"{seconds:.2f} сек. ({minutes:.2f} мин. или {m}м {s}с)"
+
+        # 2. Расчет для основного станка
+        main_time_sec = calc.calculate_lathe_time(item_type, raw_data, main_res)
+        
+        res_text = (
+            f"ОСНОВНОЙ СТАНОК: {main_res['machine']}\n"
+            f"Обороты (D): {main_res['rpm']} об/мин\n"
+            f"ВРЕМЯ ИТОГО: {format_time(main_time_sec)}\n"
+            f"{'-'*40}\n"
+        )
+
+        # 3. Расчет для альтернатив
+        if alternatives:
+            res_text += "АЛЬТЕРНАТИВНЫЕ ВАРИАНТЫ:\n"
+            for alt in alternatives:
+                alt_time_sec = calc.calculate_lathe_time(item_type, raw_data, alt)
+                res_text += f"- {alt['machine']}: {format_time(alt_time_sec)}\n"
+
+        self.current_screen.show_results(res_text)
+
+
+
+    # --- СЕКРЕТНАЯ ЛОГИКА (Пасхалка) ---
+    def _handle_keypress(self, event):
+        # Строка 80 (ОБЯЗАТЕЛЬНО ОТСТУП 8 пробелов от края файла)
+        char = event.char.lower()
+        if not char: 
+            return
+        
+        # Логика замены раскладки
+        replacements = {'с': 'c', 'р': 'h', 'г': 'u'}
+        char = replacements.get(char, char)
+        
+        # Обновляем буфер (используем длину кода из модели)
+        code_len = len(self.model.secret_code)
+        self.typed_buffer = (self.typed_buffer + char)[-code_len:]
+        
+        # Проверяем секрет через модель
+        if self.model.check_secret(self.typed_buffer):
+            self.animate_secret(10)
+
+
+    def animate_secret(self, size):
+        try:
+            img_path = self.model.get_image_data("pics/chuu.jfif")
+            if not img_path: return
+
+            original = Image.open(img_path)
+            if size <= 450:
+                resample_mode = getattr(Image, 'Resampling', Image).LANCZOS
+                resized = original.resize((size, size), resample_mode)
+                photo = ImageTk.PhotoImage(resized)
+                
+                self.view.show_secret_image(photo)
+                # Зацикливаем анимацию через View
+                self.view.after(15, lambda: self.animate_secret(size + 25))
+            else:
+                self.view.after(3000, self.view.hide_secret_image)
+                self.typed_buffer = ""
+        except Exception as e:
+            print(f"Ошибка анимации: {e}")
