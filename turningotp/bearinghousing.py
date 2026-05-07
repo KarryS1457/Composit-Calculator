@@ -24,7 +24,7 @@ class bearinghousing(tk.Frame):
         left_frame.pack(side="left", fill="y", padx=(0, 20))
                  
         self.add_label(left_frame, "--- ГЕОМЕТРИЯ ДЕТАЛИ ---", bold=True)
-        self.ent_D = self.add_entry(left_frame, "Внешний диаметр D (мм):")
+        self.ent_Dt = self.add_entry(left_frame, "Внешний диаметр Dt (мм):")
         self.ent_t = self.add_entry(left_frame, "Толщина детали t (мм):")
         self.ent_Dc = self.add_entry(left_frame, "Диаметр проточки Dc (мм):")
         self.ent_c = self.add_entry(left_frame, "Длина проточки c (мм):")
@@ -46,7 +46,7 @@ class bearinghousing(tk.Frame):
         self.img_label.pack(expand=True)
        
         self.bind("<Configure>", self.on_resize)
-        self.set_image(resource_path("pics/bearinghousing.png"))
+        self.set_image(resource_path("pics/bearinghousing.jpg"))
 
         # Нижний блок (Кнопка + Результат)
         bottom_frame = tk.Frame(self)
@@ -148,7 +148,7 @@ class bearinghousing(tk.Frame):
     def run_calculation(self):
         try:
             payload = {
-                "D": float(self.ent_D.get() or 0),
+                "Dt": float(self.ent_Dt.get() or 0),
                 "t": float(self.ent_t.get() or 0),
                 "Dc": float(self.ent_Dc.get() or 0),
                 "c": float(self.ent_c.get() or 0),

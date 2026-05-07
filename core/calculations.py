@@ -100,7 +100,6 @@ def calculate_weld_logic(gost, s, l_mm, m, k_lp, k_pos, k_posture, weld_data, ch
         v_cham = get_val_by_thickness(s, sel_ch['x'], sel_ch['y'])
         t_cham = (l_mm / v_cham) * k_cham / 60 if v_cham > 0 else 0
 
-    t_kran = 3.5 if m >= 15 else 0.8
     t_kran = 4 if m >= 15 else 0.5
     t_mark = 0.83
     t_base = max(get_val_by_thickness(s, th_list, tm_list), 0.1)
@@ -301,12 +300,12 @@ def calculate_lathe_time(item_type, p, m_info):
         t_face = get_facing_time(D1, Dt, delta_S)
         total_min = t_turn_out + t_turn_Dc1 + t_turn_Dm1 + t_turn_Dc2 + t_turn_Dm2 + t_turn_Da + t_face
 
-    elif item_type == "Bearinghousing":
-        t_turn_out = get_turning_time(D1, Dt, t)
-        t_face_Dc = get_facing_time(Dc, 0, c)
-        t_face_Dm = get_facing_time(Dm, 0, t-c)
-        t_face = get_facing_time(D1, Dt, delta_S)
-        total_min = t_turn_out + t_face_Dc + t_face_Dm + t_face
+    elif item_type == "bearinghousing":
+        t_turn_out = get_turning_time(D1, D, t)
+        t_face = get_facing_time(D1, 0, delta_S)
+        t_turn_Dc = get_turning_time(Dc, 0, t)
+        t_turn_Dm = get_turning_time(Dm, Dc, t - c)
+        total_min = t_turn_out + t_face + t_turn_Dc + t_turn_Dm
 
     # Применяем коэф. сложности и переводим в секунды
     aw_coeff = get_AWC_coeff(D, S)
