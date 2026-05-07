@@ -303,11 +303,10 @@ def calculate_lathe_time(item_type, p, m_info):
 
     elif item_type == "Bearinghousing":
         t_turn_out = get_turning_time(D1, Dt, t)
-        t_turn_Dc = get_turning_time(Dt, Dc, c)
-        t_turn_Dm = get_turning_time(Dc1, 1, m)
-        t_turn_Da = get_turning_time(Dm1, Da, a)
+        t_turn_Dc = get_turning_time(Dc, 0, c)
+        t_turn_Dm = get_turning_time(Dm, 0, t-c)
         t_face = get_facing_time(D1, Dt, delta_S)
-        total_min = t_turn_out + t_turn_Dc1 + t_turn_Dm1 + t_turn_Dc2 + t_turn_Dm2 + t_turn_Da + t_face
+        total_min = t_turn_out + t_turn_Dc + t_turn_Dm + t_face
 
     # Применяем коэф. сложности и переводим в секунды
     aw_coeff = get_AWC_coeff(D, S)

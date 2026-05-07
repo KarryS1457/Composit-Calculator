@@ -31,7 +31,8 @@ class TabLatheOtp(tk.Frame):
         # Передаем не классы, а строковые названия (ключи)
         menu_buttons = [
             ("Ось", "axle"),
-            ("Вал", "shaft")
+            ("Вал", "shaft"),
+            ("Корпус подшипника", "bearinghousing")
        ]
        
         for text, screen_name in menu_buttons:
@@ -50,6 +51,8 @@ class TabLatheOtp(tk.Frame):
             from turningotp.axle import axle as screen_class
         elif screen_name == "shaft":
             from turningotp.shaft import shaft as screen_class
+        elif screen_name == "bearinghousing":
+            from turningotp.bearinghousing import bearinghousing as screen_class
         else:
             return
 

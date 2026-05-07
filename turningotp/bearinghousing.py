@@ -2,7 +2,7 @@ import tkinter as tk
 from core.utils import resource_path
 from PIL import Image, ImageTk
 
-class axle(tk.Frame):
+class bearinghousing(tk.Frame):
     def __init__(self, parent, presenter):
         super().__init__(parent)
         self.controller = presenter  # Наш AppPresenter
@@ -29,9 +29,6 @@ class axle(tk.Frame):
         self.ent_Dc = self.add_entry(left_frame, "Диаметр проточки Dc (мм):")
         self.ent_c = self.add_entry(left_frame, "Длина проточки c (мм):")
         self.ent_Dm = self.add_entry(left_frame, "Диаметр проточки Dm (мм):")
-        self.ent_m = self.add_entry(left_frame, "Длина проточки m (мм):")
-        self.ent_Da = self.add_entry(left_frame, "Диаметр дна канавы Da (мм):")
-        self.ent_a = self.add_entry(left_frame, "Ширина канавы a (мм):")
 
         self.add_label(left_frame, "--- ПАРАМЕТРЫ ЗАГОТОВКИ ---", bold=True)
         self.ent_D1 = self.add_entry(left_frame, "Внешний диаметр заготовки D1 (мм):")
@@ -49,7 +46,7 @@ class axle(tk.Frame):
         self.img_label.pack(expand=True)
        
         self.bind("<Configure>", self.on_resize)
-        self.set_image(resource_path("pics/axle.png"))
+        self.set_image(resource_path("pics/bearinghousing.png"))
 
         # Нижний блок (Кнопка + Результат)
         bottom_frame = tk.Frame(self)
@@ -147,7 +144,7 @@ class axle(tk.Frame):
     def go_back(self):
         self.controller.show_lathe_otp_menu()
 
-    # --- Сбор данных для MVP ---
+    #Сбор данных
     def run_calculation(self):
         try:
             payload = {
@@ -156,14 +153,11 @@ class axle(tk.Frame):
                 "Dc": float(self.ent_Dc.get() or 0),
                 "c": float(self.ent_c.get() or 0),
                 "Dm": float(self.ent_Dm.get() or 0),
-                "m": float(self.ent_m.get() or 0),
-                "Da": float(self.ent_Da.get() or 0),
-                "a": float(self.ent_a.get() or 0),
                 "D1": float(self.ent_D1.get() or 0),
-                "S": float(self.ent_S.get() or 0),
+                "S": float(self.ent_S.get() or 0)
             }
-            # Отправляем в презентер с типом "axle"
-            self.controller.handle_lathe_calculation("axle", payload)
+            # Отправляем в презентер с типом "bearinghousing"
+            self.controller.handle_lathe_calculation("bearinghousing", payload)
         except ValueError:
             self.res_box.config(text="ОШИБКА: Введите числовые значения", fg="red")
 
