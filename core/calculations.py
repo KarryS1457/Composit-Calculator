@@ -61,7 +61,7 @@ def calculate_turning_parameters(target_diam):
 
 def get_AWC_coeff(target_d, target_s):
 
-    # 1. Поиск строки по Диаметру (D)
+    #Поиск строки по Диаметру (D)
     d_keys = sorted(AWC_DATA.keys())
     row_key = d_keys[0]
     for d in d_keys:
@@ -70,7 +70,7 @@ def get_AWC_coeff(target_d, target_s):
         else:
             break
 
-    # 2. Поиск столбца по Толщине (S) - логика Excel "не более чем"
+    #Поиск столбца по Толщине (S)
     col_idx = 0
     for i, s in enumerate(AWC_S):
         if s <= target_s:
@@ -84,9 +84,9 @@ def calculate_weld_logic(gost, s, l_mm, m, k_lp, k_pos, k_posture, weld_data, ch
     weld_info = weld_data[gost]
     th_list, tm_list = weld_info[0], weld_info[1]
 
-    k_obsl = 1.2
+    k_obsl = 1.14
 
-    # --- ИЗМЕНЕНИЕ 1: Отменяем расчет фаски для C4 ---
+    # ИЗМЕНЕНИЕ 1: Отменяем расчет фаски для C4
     if gost == "C4":
         t_cham = 0
     else:
@@ -106,8 +106,7 @@ def calculate_weld_logic(gost, s, l_mm, m, k_lp, k_pos, k_posture, weld_data, ch
 
     l_m = l_mm / 1000
 
-    # --- ИЗМЕНЕНИЕ 2: Увеличиваем время сварки для C4 ---
-    # Например, 1.15 означает увеличение на 15%. Можешь поменять на любое нужное значение (1.1, 1.2 и т.д.)
+    #Доп. коэфф для типа шва С4
     k_c4_extra = 1.2 if gost == "C4" else 1.0 
 
     # Добавляем наш коэффициент k_c4_extra в формулу основного времени
@@ -129,9 +128,7 @@ def calculate_weld_logic(gost, s, l_mm, m, k_lp, k_pos, k_posture, weld_data, ch
 def calculate_lathe_time(item_type, p, m_info):
     """Универсальное ядро расчетов с внутренней логикой адаптации RPM и технологическими проходами торцевания."""
     m_name = m_info['machine']
-    m_params = data.FEEDRATE_DATA.get(m_name, [5, 0.19, 0.19])
-
-    # Убрана лишняя запятая:
+    m_params = data.FEEDRATE_DATA.get(m_name, [3, 0.15, 0.25])
     depth_limit, feed_turn, feed_face = m_params
 
     # Базовые параметры из интерфейса (убрано задвоение a)
@@ -141,46 +138,45 @@ def calculate_lathe_time(item_type, p, m_info):
     Dc1, Dm1, Dc2, Dm2 = p.get('Dc1', 0), p.get('Dm1', 0), p.get('Dc2', 0), p.get('Dm2', 0)
     D1, D2, S = p.get('D1', 0), p.get('D2', 0), p.get('S', 0)
 
-    rpm_default = m_info['rpm']
+    rpm_default = m_info.get('rpm', 100)
     delta_S = S - t
 
-    # УЛУЧШЕННАЯ ФУНКЦИЯ ТОРЦЕВАНИЯ
     def get_rpm_for_diam(diameter):
-        """Поиск оптимальных оборотов для конкретного диаметра по таблицам станка"""
+        """Поиск RPM по таблице Лист1 (ближайшее меньшее или равное)"""
         diams, rpms = data.TURNING_DATA.get(m_name, ([], []))
         if diams:
-            idx = min(range(len(diams)), key=lambda i: abs(diams[i] - diameter))
-            return rpms[idx]
+            # В Sheets VLOOKUP(..., TRUE) ищет наибольшее значение, которое <= искомого
+            # Здесь используем простую логику поиска по порогам
+            res_rpm = rpms[0]
+            for i, val in enumerate(diams):
+                if diameter >= val:
+                    res_rpm = rpms[i]
+                else:
+                    break
+            return res_rpm
         return rpm_default
 
     def get_facing_time(d_start, d_end, thickness):
-        """Расчет торцевания с учетом изменения RPM и работы на 2 стороны"""
+        """Торцевание (поперечная подача)"""
         if thickness <= 0 or d_start <= d_end:
             return 0
-
-        # Определяем обороты по среднему диаметру зоны резания
         rpm_f = get_rpm_for_diam((d_start + d_end) / 2)
         speed_f = feed_face * rpm_f
-
-        # Технологический минимум: 2 прохода (обработка с двух сторон заготовки)
-        passes_f = max(2, math.ceil(thickness / depth_limit))
-
-        # Путь резца = разница радиусов
+        # Убрано max(2), используем реальное кол-во проходов
+        passes_f = math.ceil(thickness / depth_limit)
         path_length = abs(d_start - d_end) / 2
-
         return (path_length * passes_f) / speed_f if speed_f > 0 else 0
 
     def get_turning_time(d_start, d_end, length):
-        """Универсальная функция точения (внешнего и внутреннего)"""
-        if length <= 0 or d_start <= d_end:
+        """Точение (продольная подача)"""
+        if length <= 0 or abs(d_start - d_end) < 0.1:
             return 0
-
-        rpm_t = get_rpm_for_diam(d_start)
+        rpm_t = get_rpm_for_diam(max(d_start, d_end))
         speed_t = feed_turn * rpm_t
-
-        passes_t = max(2, math.ceil(abs(d_start - d_end) / 2 / depth_limit))
-
+        passes_t = math.ceil(abs(d_start - d_end) / 2 / depth_limit)
         return (abs(length) * passes_t) / speed_t if speed_t > 0 else 0
+
+    total_min = 0
 
     # --- ОСНОВНОЙ РАСЧЕТ ---
     total_min = 0
@@ -191,7 +187,7 @@ def calculate_lathe_time(item_type, p, m_info):
         t_turn_in = get_turning_time(d, D2, t)  # Внутреннее: d больше D2
 
         t_face = get_facing_time(D1, D2, delta_S)
-        t_face_groove = get_facing_time(D, p['DM'], p.get('ch5', 0))
+        t_face_groove = get_facing_time(D, DM, p.get('ch5', 0))
 
         rpm_k = get_rpm_for_diam(p.get('Dk', 0))
         t_grooves = (p.get('P', 0) * p.get('n', 0)) / (feed_face * rpm_k) if rpm_k > 0 else 0
@@ -258,22 +254,28 @@ def calculate_lathe_time(item_type, p, m_info):
 
     elif item_type == "bushing":
         n_qty = p.get('n', 1)
-
-        t_out_1 = get_turning_time(D1, D, t)
-        t_in_dw_1 = get_turning_time(p['Dw'], p['d'], p['c'])
-
-        thread_rpm = min(get_rpm_for_diam(p.get('M', D)), 200)
-        t_thread_1 = (p.get('L', 0) / (p.get('H', 1) * thread_rpm)) * 6 if thread_rpm > 0 else 0
-
-        t_groove_1 = get_facing_time(D, p.get('Dm'
-                                              , 0), depth_limit)
-
-        t_cyclic_total = (t_out_1 + t_in_dw_1 + t_thread_1 + t_groove_1) * n_qty
-
-        delta_S_total = S - (t * n_qty)
-        t_face_once = get_facing_time(D1, p['d'], delta_S_total)
-
-        total_min = t_cyclic_total + t_face_once
+        # 1. Наружка
+        t_out = get_turning_time(D1, D, t)
+        # 2. Внутрянка (от отверстия заготовки D2 до внутреннего диаметра d)
+        t_in = get_turning_time(d, D2, t) 
+        # 3. Канавка (Dm - диаметр дна, X - ширина)
+        dm = p.get('Dm', 0)
+        width_x = p.get('X', 0)
+        groove_depth = (D - dm) / 2
+        # Время канавки: проходы по глубине, путь по ширине
+        t_groove = get_facing_time(D, dm, groove_depth) # Упрощенно
+        
+        # 4. Резьба (считается отдельно, обычно без коэфф. 1.8)
+        thread_rpm = min(get_rpm_for_diam(p.get('M', D)), 100)
+        t_thread = (p.get('L', 0) / (p.get('H', 1) * thread_rpm)) * 12 if thread_rpm > 0 else 0
+        
+        # Суммируем циклические операции на одну деталь
+        t_one_piece = (t_out + t_in + t_groove)
+        
+        # 5. Торцовка (S -> t)
+        t_face_total = get_facing_time(D1, D2, delta_S)
+        
+        total_min = (t_one_piece * n_qty) + t_face_total
 
     elif item_type == "axle":
         t_turn_out = get_turning_time(D1, D, t)
@@ -308,5 +310,4 @@ def calculate_lathe_time(item_type, p, m_info):
         total_min = t_turn_out + t_face + t_turn_Dc + t_turn_Dm
 
     # Применяем коэф. сложности и переводим в секунды
-    aw_coeff = get_AWC_coeff(D, S)
-    return (total_min * 60) * aw_coeff
+    return (total_min * 60) * get_AWC_coeff(D, S)
