@@ -40,7 +40,7 @@ class rotspher(tk.Frame):
         self.ent_D2 = self.add_entry(left_frame, "Внутренний диаметр заготовки D2 (мм):")
         self.ent_S = self.add_entry(left_frame, "Толщина листа S (мм):")
 
-               # Правый блок (Эскиз)
+        # Правый блок (Эскиз)
         self.right_frame = tk.Frame(main_content, bg="#ffffff", width=400)
         self.right_frame.pack(side="right", fill="both", expand=True)
 

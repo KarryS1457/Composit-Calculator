@@ -183,11 +183,12 @@ def calculate_lathe_time(item_type, p, m_info):
 
     # --- ЛОГИКА ПО ТИПАМ ---
     if item_type == "adapter":
-        t_turn_out = get_turning_time(D1, D, t - p.get('ch5', 0))
+        ch5_val = p.get('ch5', 0)
+        t_turn_out = get_turning_time(D1, D, t - ch5_val)
         t_turn_in = get_turning_time(d, D2, t)  # Внутреннее: d больше D2
 
         t_face = get_facing_time(D1, D2, delta_S)
-        t_face_groove = get_facing_time(D, DM, p.get('ch5', 0))
+        t_face_groove = get_facing_time(D, DM, ch5_val)
 
         rpm_k = get_rpm_for_diam(p.get('Dk', 0))
         t_grooves = (p.get('P', 0) * p.get('n', 0)) / (feed_face * rpm_k) if rpm_k > 0 else 0
@@ -308,6 +309,77 @@ def calculate_lathe_time(item_type, p, m_info):
         t_turn_Dc = get_turning_time(Dc, 0, t)
         t_turn_Dm = get_turning_time(Dm, Dc, t - c)
         total_min = t_turn_out + t_face + t_turn_Dc + t_turn_Dm
+
+    elif item_type == "rotspher":
+        # 1. Наружное точение (D1 -> D)
+        t_out = get_turning_time(D1, D, t)
+        
+        # 2. Внутреннее точение (d -> D2)
+        t_in = get_turning_time(d, D2, t)
+        
+        # 3. Торцовка заготовки (S -> t)
+        t_face = get_facing_time(D1, D2, delta_S)
+        
+        # 4. Обработка сферической части (RS - радиус, RA - угол, as - глубина)
+        rs = p.get('RS', 0)
+        ra = p.get('RA', 0)        # Угол в градусах
+        as_depth = p.get('as', 0)  # Глубина съема для формирования сферы
+        
+        if rs > 0 and ra > 0:
+            # Длина пути резца по дуге (длина дуги L = R * angle_rad)
+            arc_path = rs * (ra * math.pi / 180)
+            
+            # Количество проходов по глубине сферы
+            passes_sphere = math.ceil(as_depth / depth_limit) if as_depth > 0 else 1
+            
+            # Обороты берем по наружному диаметру сферы (обычно это D)
+            rpm_s = get_rpm_for_diam(D)
+            # Сферическая обработка обычно идет с продольной подачей
+            t_sphere = (arc_path * passes_sphere) / (feed_turn * rpm_s) if rpm_s > 0 else 0
+        else:
+            t_sphere = 0
+
+        # 5. Обработка проточки (DM - диаметр проточки)
+        # Если DM задан, это обычно дополнительная торцовка или снятие слоя
+        if DM > 0 and DM < D:
+            # Считаем как торцовку от D до DM на глубину, например, 2-3 мм 
+            # или используем разницу для определения времени
+            t_protochka = get_facing_time(D, DM, depth_limit) 
+        else:
+            t_protochka = 0
+
+        # 6. Фаски (ch1 - ch4)
+        # Суммируем время на типовые фаски (упрощенно)
+        total_ch_len = sum([p.get(f'ch{i}', 0) for i in range(1, 5)])
+        t_chams = (total_ch_len / (feed_turn * rpm_default)) if rpm_default > 0 else 0
+
+        total_min = t_out + t_in + t_face + t_sphere + t_protochka + t_chams
+
+    elif item_type == "pin":
+        n_qty = p.get('n', 1)
+        
+        # 1. Наружное точение (черновое и чистовое прутка D1 -> D)
+        t_out_main = get_turning_time(D1, D, t)
+        
+        # 2. Точение ступени или проточки (D -> Dc) на длину 'a'
+        # В штифтах 'a' обычно — это длина заниженного диаметра
+        t_out_step = get_turning_time(D, Dc, a)
+        
+        # 3. Фаски (ch1 и ch2)
+        ch_total = p.get('ch1', 0) + p.get('ch2', 0)
+        rpm_ch = get_rpm_for_diam(D)
+        t_chams = (ch_total / (feed_turn * rpm_ch)) if rpm_ch > 0 else 0
+        
+        # Циклические операции на ОДНО изделие
+        t_cyclic_one = t_out_main + t_out_step + t_chams
+        
+        # 4. ТОРЦЕВАНИЕ (подрезка торца заготовки в размер)
+        # Для штифта торцуем от D1 до 0 (так как он цельный)
+        # Считаем торцовку припуска delta_S один раз на всю партию (как в твоем коде)
+        t_face_total = get_facing_time(D1, 0, delta_S)
+        
+        # Итоговое время (цикл * кол-во + общая торцовка припуска)
+        total_min = (t_cyclic_one * n_qty) + t_face_total
 
     # Применяем коэф. сложности и переводим в секунды
     return (total_min * 60) * get_AWC_coeff(D, S)
