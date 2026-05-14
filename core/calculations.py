@@ -178,6 +178,25 @@ def calculate_lathe_time(item_type, p, m_info):
 
     total_min = 0
 
+    def get_thread_time(th_diameter, th_pitch, th_lenght, th_pos, th_depth_cut):
+
+        rpm = get_rpm_for_diam(max(th_diameter))
+
+        if rpm <= 0 or th_pitch <= 0:
+            return 0.0
+        
+        if th_pos:
+            th_depth = 0.6134 * th_pitch
+        else:
+            th_depth = 0.5413 * th_pitch
+
+        th_passses = math.ceil(th_depth / th_depth_cut)
+
+        total_path = th_lenght * th_passses
+        th_time = (total_path / (rpm * th_pitch)) * 60
+
+        return round(th_time, 2)
+
     # --- ОСНОВНОЙ РАСЧЕТ ---
     total_min = 0
 
@@ -255,27 +274,44 @@ def calculate_lathe_time(item_type, p, m_info):
 
     elif item_type == "bushing":
         n_qty = p.get('n', 1)
-        # 1. Наружка
+        
+        # 1. Наружное точение (D1 -> D) на всю длину детали t
         t_out = get_turning_time(D1, D, t)
-        # 2. Внутрянка (от отверстия заготовки D2 до внутреннего диаметра d)
-        t_in = get_turning_time(d, D2, t) 
-        # 3. Канавка (Dm - диаметр дна, X - ширина)
-        dm = p.get('Dm', 0)
-        width_x = p.get('X', 0)
-        groove_depth = (D - dm) / 2
-        # Время канавки: проходы по глубине, путь по ширине
-        t_groove = get_facing_time(D, dm, groove_depth) # Упрощенно
-        
-        # 4. Резьба (считается отдельно, обычно без коэфф. 1.8)
-        thread_rpm = min(get_rpm_for_diam(p.get('M', D)), 100)
-        t_thread = (p.get('L', 0) / (p.get('H', 1) * thread_rpm)) * 12 if thread_rpm > 0 else 0
-        
-        # Суммируем циклические операции на одну деталь
-        t_one_piece = (t_out + t_in + t_groove)
-        
-        # 5. Торцовка (S -> t)
+
+        # 2. Внутреннее точение / Расточка (D2 -> d) на длину t
+        t_in = get_turning_time(d, D2, t)
+
+        # 3. Торцевание припуска (S -> t) - делается один раз на партию
         t_face_total = get_facing_time(D1, D2, delta_S)
-        
+
+        # 4. Обработка проточки (DM - диаметр проточки, a - глубина/длина)
+        t_groove = 0
+        if p.get('DM', 0) > 0 and p.get('a', 0) > 0:
+            t_groove = get_facing_time(D, p.get('DM'), p.get('a'))
+
+        # 5. Резьба (Thread)
+        t_thread_min = 0
+        if p.get('L', 0) > 0 and p.get('H', 0) > 0:
+            # Вызываем вашу функцию. Поскольку она возвращает секунды, делим на 60
+            t_thread_sec = get_thread_time(
+                th_diameter=p.get('M', D), 
+                th_pitch=p.get('H', 0), 
+                th_lenght=p.get('L', 0), 
+                th_pos=p.get('th_pos', True),
+                th_depth_cut=0.2 # стандартный съем из таблицы
+            )
+            t_thread_min = t_thread_sec / 60
+
+        # 6. Расчет фасок (ch1, ch2) - добавлено
+        ch_total = p.get('ch1', 0) + p.get('ch2', 0)
+        t_chams = 0
+        if ch_total > 0:
+            rpm_ch = get_rpm_for_diam(D)
+            t_chams = (ch_total / (feed_turn * rpm_ch)) if rpm_ch > 0 else 0
+
+        # --- ИТОГОВОЕ СУММИРОВАНИЕ ---
+        # Складываем всё в минутах
+        t_one_piece = t_out + t_in + t_groove + t_thread_min + t_chams
         total_min = (t_one_piece * n_qty) + t_face_total
 
     elif item_type == "axle":

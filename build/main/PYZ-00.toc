@@ -1,4 +1,5 @@
-('C:\\Users\\Сасин ВА\\Desktop\\normcalcreborn\\build\\main\\PYZ-00.pyz',
+('C:\\Users\\Сасин '
+ 'ВА\\Documents\\calcrepo\\Composit-Calculator\\Composit-Calculator\\build\\main\\PYZ-00.pyz',
  [('PIL',
    'C:\\Users\\Сасин '
    'ВА\\AppData\\Local\\Programs\\Python\\Python314\\Lib\\site-packages\\PIL\\__init__.py',
@@ -416,31 +417,20 @@
    'ВА\\AppData\\Local\\Programs\\Python\\Python314\\Lib\\copy.py',
    'PYMODULE'),
   ('core',
-<<<<<<< HEAD
    'C:\\Users\\Сасин '
-   'ВА\\Documents\\calcrepo\\Comp-Norm-Calc\\core\\__init__.py',
+   'ВА\\Documents\\calcrepo\\Composit-Calculator\\Composit-Calculator\\core\\__init__.py',
    'PYMODULE'),
   ('core.calculations',
    'C:\\Users\\Сасин '
-   'ВА\\Documents\\calcrepo\\Comp-Norm-Calc\\core\\calculations.py',
+   'ВА\\Documents\\calcrepo\\Composit-Calculator\\Composit-Calculator\\core\\calculations.py',
    'PYMODULE'),
   ('core.data',
-   'C:\\Users\\Сасин ВА\\Documents\\calcrepo\\Comp-Norm-Calc\\core\\data.py',
+   'C:\\Users\\Сасин '
+   'ВА\\Documents\\calcrepo\\Composit-Calculator\\Composit-Calculator\\core\\data.py',
    'PYMODULE'),
   ('core.utils',
-   'C:\\Users\\Сасин ВА\\Documents\\calcrepo\\Comp-Norm-Calc\\core\\utils.py',
-=======
-   'C:\\Users\\Сасин ВА\\Desktop\\normcalcreborn\\core\\__init__.py',
-   'PYMODULE'),
-  ('core.calculations',
-   'C:\\Users\\Сасин ВА\\Desktop\\normcalcreborn\\core\\calculations.py',
-   'PYMODULE'),
-  ('core.data',
-   'C:\\Users\\Сасин ВА\\Desktop\\normcalcreborn\\core\\data.py',
-   'PYMODULE'),
-  ('core.utils',
-   'C:\\Users\\Сасин ВА\\Desktop\\normcalcreborn\\core\\utils.py',
->>>>>>> 8ca52886b20ac37d6adc4a7bfa6a84e29d0f532a
+   'C:\\Users\\Сасин '
+   'ВА\\Documents\\calcrepo\\Composit-Calculator\\Composit-Calculator\\core\\utils.py',
    'PYMODULE'),
   ('csv',
    'C:\\Users\\Сасин '
@@ -715,11 +705,8 @@
    'ВА\\AppData\\Local\\Programs\\Python\\Python314\\Lib\\mimetypes.py',
    'PYMODULE'),
   ('model',
-<<<<<<< HEAD
-   'C:\\Users\\Сасин ВА\\Documents\\calcrepo\\Comp-Norm-Calc\\model.py',
-=======
-   'C:\\Users\\Сасин ВА\\Desktop\\normcalcreborn\\model.py',
->>>>>>> 8ca52886b20ac37d6adc4a7bfa6a84e29d0f532a
+   'C:\\Users\\Сасин '
+   'ВА\\Documents\\calcrepo\\Composit-Calculator\\Composit-Calculator\\model.py',
    'PYMODULE'),
   ('netrc',
    'C:\\Users\\Сасин '
@@ -750,11 +737,8 @@
    'ВА\\AppData\\Local\\Programs\\Python\\Python314\\Lib\\pprint.py',
    'PYMODULE'),
   ('presenter',
-<<<<<<< HEAD
-   'C:\\Users\\Сасин ВА\\Documents\\calcrepo\\Comp-Norm-Calc\\presenter.py',
-=======
-   'C:\\Users\\Сасин ВА\\Desktop\\normcalcreborn\\presenter.py',
->>>>>>> 8ca52886b20ac37d6adc4a7bfa6a84e29d0f532a
+   'C:\\Users\\Сасин '
+   'ВА\\Documents\\calcrepo\\Composit-Calculator\\Composit-Calculator\\presenter.py',
    'PYMODULE'),
   ('py_compile',
    'C:\\Users\\Сасин '
@@ -858,95 +842,89 @@
    'PYMODULE'),
   ('turning', '-', 'PYMODULE'),
   ('turning.adapter_flange',
-   'C:\\Users\\Сасин ВА\\Desktop\\normcalcreborn\\turning\\adapter_flange.py',
+   'C:\\Users\\Сасин '
+   'ВА\\Documents\\calcrepo\\Composit-Calculator\\Composit-Calculator\\turning\\adapter_flange.py',
    'PYMODULE'),
   ('turning.bushing',
-   'C:\\Users\\Сасин ВА\\Desktop\\normcalcreborn\\turning\\bushing.py',
+   'C:\\Users\\Сасин '
+   'ВА\\Documents\\calcrepo\\Composit-Calculator\\Composit-Calculator\\turning\\bushing.py',
    'PYMODULE'),
   ('turning.circle',
-   'C:\\Users\\Сасин ВА\\Desktop\\normcalcreborn\\turning\\circle.py',
+   'C:\\Users\\Сасин '
+   'ВА\\Documents\\calcrepo\\Composit-Calculator\\Composit-Calculator\\turning\\circle.py',
    'PYMODULE'),
   ('turning.compensator_flange',
    'C:\\Users\\Сасин '
-   'ВА\\Desktop\\normcalcreborn\\turning\\compensator_flange.py',
+   'ВА\\Documents\\calcrepo\\Composit-Calculator\\Composit-Calculator\\turning\\compensator_flange.py',
    'PYMODULE'),
   ('turning.forming_flange',
-   'C:\\Users\\Сасин ВА\\Desktop\\normcalcreborn\\turning\\forming_flange.py',
+   'C:\\Users\\Сасин '
+   'ВА\\Documents\\calcrepo\\Composit-Calculator\\Composit-Calculator\\turning\\forming_flange.py',
    'PYMODULE'),
   ('turning.rotary_spherical_flange',
    'C:\\Users\\Сасин '
-   'ВА\\Desktop\\normcalcreborn\\turning\\rotary_spherical_flange.py',
+   'ВА\\Documents\\calcrepo\\Composit-Calculator\\Composit-Calculator\\turning\\rotary_spherical_flange.py',
    'PYMODULE'),
   ('turning.shell',
-   'C:\\Users\\Сасин ВА\\Desktop\\normcalcreborn\\turning\\shell.py',
+   'C:\\Users\\Сасин '
+   'ВА\\Documents\\calcrepo\\Composit-Calculator\\Composit-Calculator\\turning\\shell.py',
    'PYMODULE'),
   ('turning.swivel_flange',
-   'C:\\Users\\Сасин ВА\\Desktop\\normcalcreborn\\turning\\swivel_flange.py',
+   'C:\\Users\\Сасин '
+   'ВА\\Documents\\calcrepo\\Composit-Calculator\\Composit-Calculator\\turning\\swivel_flange.py',
    'PYMODULE'),
   ('turning.threaded_bushing',
-   'C:\\Users\\Сасин ВА\\Desktop\\normcalcreborn\\turning\\threaded_bushing.py',
+   'C:\\Users\\Сасин '
+   'ВА\\Documents\\calcrepo\\Composit-Calculator\\Composit-Calculator\\turning\\threaded_bushing.py',
    'PYMODULE'),
   ('turning.welded_ring',
-   'C:\\Users\\Сасин ВА\\Desktop\\normcalcreborn\\turning\\welded_ring.py',
+   'C:\\Users\\Сасин '
+   'ВА\\Documents\\calcrepo\\Composit-Calculator\\Composit-Calculator\\turning\\welded_ring.py',
    'PYMODULE'),
   ('turning.welding_flange',
-   'C:\\Users\\Сасин ВА\\Desktop\\normcalcreborn\\turning\\welding_flange.py',
+   'C:\\Users\\Сасин '
+   'ВА\\Documents\\calcrepo\\Composit-Calculator\\Composit-Calculator\\turning\\welding_flange.py',
    'PYMODULE'),
   ('turning.welding_flange_tnf',
    'C:\\Users\\Сасин '
-   'ВА\\Desktop\\normcalcreborn\\turning\\welding_flange_tnf.py',
-   'PYMODULE'),
-  ('turningotp', '-', 'PYMODULE'),
-  ('turningotp.axle',
-   'C:\\Users\\Сасин ВА\\Desktop\\normcalcreborn\\turningotp\\axle.py',
-   'PYMODULE'),
-  ('turningotp.shaft',
-   'C:\\Users\\Сасин ВА\\Desktop\\normcalcreborn\\turningotp\\shaft.py',
+   'ВА\\Documents\\calcrepo\\Composit-Calculator\\Composit-Calculator\\turning\\welding_flange_tnf.py',
    'PYMODULE'),
   ('turningotp', '-', 'PYMODULE'),
   ('turningotp.axle',
    'C:\\Users\\Сасин '
-   'ВА\\Documents\\calcrepo\\Comp-Norm-Calc\\turningotp\\axle.py',
+   'ВА\\Documents\\calcrepo\\Composit-Calculator\\Composit-Calculator\\turningotp\\axle.py',
+   'PYMODULE'),
+  ('turningotp.bearinghousing',
+   'C:\\Users\\Сасин '
+   'ВА\\Documents\\calcrepo\\Composit-Calculator\\Composit-Calculator\\turningotp\\bearinghousing.py',
    'PYMODULE'),
   ('turningotp.shaft',
    'C:\\Users\\Сасин '
-   'ВА\\Documents\\calcrepo\\Comp-Norm-Calc\\turningotp\\shaft.py',
+   'ВА\\Documents\\calcrepo\\Composit-Calculator\\Composit-Calculator\\turningotp\\shaft.py',
    'PYMODULE'),
   ('typing',
    'C:\\Users\\Сасин '
    'ВА\\AppData\\Local\\Programs\\Python\\Python314\\Lib\\typing.py',
    'PYMODULE'),
   ('ui',
-<<<<<<< HEAD
-   'C:\\Users\\Сасин ВА\\Documents\\calcrepo\\Comp-Norm-Calc\\ui\\__init__.py',
+   'C:\\Users\\Сасин '
+   'ВА\\Documents\\calcrepo\\Composit-Calculator\\Composit-Calculator\\ui\\__init__.py',
    'PYMODULE'),
   ('ui.menu',
-   'C:\\Users\\Сасин ВА\\Documents\\calcrepo\\Comp-Norm-Calc\\ui\\menu.py',
+   'C:\\Users\\Сасин '
+   'ВА\\Documents\\calcrepo\\Composit-Calculator\\Composit-Calculator\\ui\\menu.py',
    'PYMODULE'),
   ('ui.tab_lathe',
-   'C:\\Users\\Сасин ВА\\Documents\\calcrepo\\Comp-Norm-Calc\\ui\\tab_lathe.py',
+   'C:\\Users\\Сасин '
+   'ВА\\Documents\\calcrepo\\Composit-Calculator\\Composit-Calculator\\ui\\tab_lathe.py',
    'PYMODULE'),
   ('ui.tab_lathe_otp',
    'C:\\Users\\Сасин '
-   'ВА\\Documents\\calcrepo\\Comp-Norm-Calc\\ui\\tab_lathe_otp.py',
+   'ВА\\Documents\\calcrepo\\Composit-Calculator\\Composit-Calculator\\ui\\tab_lathe_otp.py',
    'PYMODULE'),
   ('ui.tab_weld',
-   'C:\\Users\\Сасин ВА\\Documents\\calcrepo\\Comp-Norm-Calc\\ui\\tab_weld.py',
-=======
-   'C:\\Users\\Сасин ВА\\Desktop\\normcalcreborn\\ui\\__init__.py',
-   'PYMODULE'),
-  ('ui.menu',
-   'C:\\Users\\Сасин ВА\\Desktop\\normcalcreborn\\ui\\menu.py',
-   'PYMODULE'),
-  ('ui.tab_lathe',
-   'C:\\Users\\Сасин ВА\\Desktop\\normcalcreborn\\ui\\tab_lathe.py',
-   'PYMODULE'),
-  ('ui.tab_lathe_otp',
-   'C:\\Users\\Сасин ВА\\Desktop\\normcalcreborn\\ui\\tab_lathe_otp.py',
-   'PYMODULE'),
-  ('ui.tab_weld',
-   'C:\\Users\\Сасин ВА\\Desktop\\normcalcreborn\\ui\\tab_weld.py',
->>>>>>> 8ca52886b20ac37d6adc4a7bfa6a84e29d0f532a
+   'C:\\Users\\Сасин '
+   'ВА\\Documents\\calcrepo\\Composit-Calculator\\Composit-Calculator\\ui\\tab_weld.py',
    'PYMODULE'),
   ('urllib',
    'C:\\Users\\Сасин '
@@ -968,13 +946,10 @@
    'C:\\Users\\Сасин '
    'ВА\\AppData\\Local\\Programs\\Python\\Python314\\Lib\\urllib\\response.py',
    'PYMODULE'),
-<<<<<<< HEAD
   ('view',
-   'C:\\Users\\Сасин ВА\\Documents\\calcrepo\\Comp-Norm-Calc\\view.py',
+   'C:\\Users\\Сасин '
+   'ВА\\Documents\\calcrepo\\Composit-Calculator\\Composit-Calculator\\view.py',
    'PYMODULE'),
-=======
-  ('view', 'C:\\Users\\Сасин ВА\\Desktop\\normcalcreborn\\view.py', 'PYMODULE'),
->>>>>>> 8ca52886b20ac37d6adc4a7bfa6a84e29d0f532a
   ('xml',
    'C:\\Users\\Сасин '
    'ВА\\AppData\\Local\\Programs\\Python\\Python314\\Lib\\xml\\__init__.py',
