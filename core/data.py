@@ -77,3 +77,15 @@ CHAMFER_SETUP_TIME = {
 # Коэффициент на сложность/состояние оборудования
 # 1.0 - новое, 1.2 - среднее, 1.4 - тяжелые условия
 CHAMFER_COMPLEXITY_K = 1.2
+
+ADMISSION_DATA = {
+    0: [6],
+    20: [8],
+    30: [10],
+    60: [12]
+}
+
+SHEET_PRODUCTS = [
+        "swivel", "rotspher", "compensator", "forming", 
+        "adapter", "weldring", "weldflange", "weldingtnf",
+    ]

@@ -125,56 +125,107 @@ def calculate_weld_logic(gost, s, l_mm, m, k_lp, k_pos, k_posture, weld_data, ch
         "s": s
     }
 
+def get_diam_allowance(s_value):
+
+    thresholds = sorted(data.ADMISSION_DATA.keys(), reverse=True)
+    for t in thresholds:
+        if s_value >= t:
+            return data.ADMISSION_DATA[t]
+    return 6
+
 def calculate_lathe_time(item_type, p, m_info):
-    """Универсальное ядро расчетов с внутренней логикой адаптации RPM и технологическими проходами торцевания."""
+    """Универсальное ядро расчетов. Исправлена ошибка типов данных."""
     m_name = m_info['machine']
     m_params = data.FEEDRATE_DATA.get(m_name, [3, 0.15, 0.25])
     depth_limit, feed_turn, feed_face = m_params
 
-    # Базовые параметры из интерфейса (убрано задвоение a)
-    D, d, t, c, a, DM = p.get('D', 0), p.get('d', 0), p.get('t', 0), p.get('c', 0), p.get('a', 0), p.get('DM', 0)
-    Dc, Dm, m, Da, Dt = p.get('Dc', 0), p.get('Dm', 0), p.get('m', 0), p.get('Da', 0), p.get('Dt', 0)
-    c1, m1, c2, m2 = p.get('c1', 0), p.get('m1', 0), p.get('c2', 0), p.get('m2', 0)
-    Dc1, Dm1, Dc2, Dm2 = p.get('Dc1', 0), p.get('Dm1', 0), p.get('Dc2', 0), p.get('Dm2', 0)
-    D1, D2, S = p.get('D1', 0), p.get('D2', 0), p.get('S', 0)
+    # Вспомогательная функция для безопасного извлечения числа
+    def to_float(val):
+        if isinstance(val, list):
+            return to_float(val[0]) if val else 0.0
+        try:
+            return float(val or 0)
+        except (ValueError, TypeError):
+            return 0.0
 
-    rpm_default = m_info.get('rpm', 100)
-    delta_S = S - t
+    try:
+        t = to_float(p.get('t', 0) or 0)
+        S = to_float(p.get('S', 0) or 0)
+        D = to_float(p.get('D', 0) or 0)
+        d = to_float(p.get('d', 0) or 0)
+        
+        user_D1 = to_float(p.get('D1', 0) or 0)
+        user_D2 = to_float(p.get('D2', 0) or 0)
 
+        a, c, m = to_float(p.get('a', 0)), to_float(p.get('c', 0)), to_float(p.get('m', 0))
+        DW, DM = to_float(p.get('DW', 0)), to_float(p.get('DM', 0))
+        Dc, Dm, Da, Dt = to_float(p.get('Dc', 0)), to_float(p.get('Dm', 0)), to_float(p.get('Da', 0)), to_float(p.get('Dt', 0))
+        c1, c2, m1, m2 = to_float(p.get('c1', 0)), to_float(p.get('c2', 0)), to_float(p.get('m1', 0)), to_float(p.get('m2', 0))
+        Dc1, Dc2, Dm1, Dm2 = to_float(p.get('Dc1', 0)), to_float(p.get('Dc2', 0)), to_float(p.get('Dm1', 0)), to_float(p.get('Dm2', 0))
+
+    except Exception:
+        return 0.0
+
+    # 2. РАСЧЕТ ЗАГОТОВКИ (D1 и D2)
+    allowance = 6.0
+    if item_type in data.SHEET_PRODUCTS:
+        thresholds = sorted(data.ADMISSION_DATA.keys(), reverse=True)
+        for thr in thresholds:
+            if S >= thr:
+                val = data.ADMISSION_DATA[thr]
+                allowance = to_float(val)
+                break
+
+    # 3. РАСЧЕТ ЗАГОТОВКИ ПО ТАБЛИЦЕ (D1_auto) ДЛЯ ХАРАКТЕРИСТИК СТАНКА
+    D1_auto = D + allowance
+    
+    # Внутренняя функция поиска RPM (нужна нам сейчас для rpm_default)
     def get_rpm_for_diam(diameter):
-        """Поиск RPM по таблице Лист1 (ближайшее меньшее или равное)"""
         diams, rpms = data.TURNING_DATA.get(m_name, ([], []))
         if diams:
-            # В Sheets VLOOKUP(..., TRUE) ищет наибольшее значение, которое <= искомого
-            # Здесь используем простую логику поиска по порогам
             res_rpm = rpms[0]
             for i, val in enumerate(diams):
-                if diameter >= val:
-                    res_rpm = rpms[i]
-                else:
-                    break
+                if diameter >= val: res_rpm = rpms[i]
+                else: break
             return res_rpm
-        return rpm_default
+        return to_float(m_info.get('rpm', 100))
+
+    # УСТАНАВЛИВАЕМ ХАРАКТЕРИСТИКИ СТАНКА ПО ТЕХНОЛОГИЧЕСКОМУ ДИАМЕТРУ
+    # Даже если вы введете D1=500, станок будет "настроен" на работу с D1_auto (например, 310)
+    rpm_default = get_rpm_for_diam(D1_auto)
+
+    # 4. ФАКТИЧЕСКИЕ ДИАМЕТРЫ ЗАГОТОВКИ (Приоритет ручного ввода)
+    D1 = user_D1 if user_D1 > 0 else D1_auto
+    D2 = user_D2 if user_D2 > 0 else (max(0.0, d - allowance) if d > 0 else 0.0)
+
+    # Обновляем словарь p для вложенных функций (AWC коэффициенты)
+    p['D1'], p['D2'], p['S'] = D1, D2, S
+    delta_S = S - t
 
     def get_facing_time(d_start, d_end, thickness):
-        """Торцевание (поперечная подача)"""
-        if thickness <= 0 or d_start <= d_end:
-            return 0
-        rpm_f = get_rpm_for_diam((d_start + d_end) / 2)
-        speed_f = feed_face * rpm_f
-        # Убрано max(2), используем реальное кол-во проходов
-        passes_f = math.ceil(thickness / depth_limit)
+        """Торцевание (поперечная подача). Минимум 2 прохода."""
+        if thickness <= 0 or abs(d_start - d_end) < 0.01: return 0
         path_length = abs(d_start - d_end) / 2
-        return (path_length * passes_f) / speed_f if speed_f > 0 else 0
+        avg_diameter = (d_start + d_end) / 2
+        rpm_f = get_rpm_for_diam(avg_diameter)
+        speed_f = feed_face * rpm_f
+        if speed_f <= 0: return 0
+        
+        calculated_passes = math.ceil(thickness / depth_limit)
+        passes_f = max(2, calculated_passes) # ПРАВИЛО: всегда минимум 2
+        return (path_length * passes_f) / speed_f
 
     def get_turning_time(d_start, d_end, length):
-        """Точение (продольная подача)"""
-        if length <= 0 or abs(d_start - d_end) < 0.1:
-            return 0
+        """Точение (продольная подача). Минимум 2 прохода."""
+        if length <= 0 or abs(d_start - d_end) < 0.1: return 0
         rpm_t = get_rpm_for_diam(max(d_start, d_end))
         speed_t = feed_turn * rpm_t
-        passes_t = math.ceil(abs(d_start - d_end) / 2 / depth_limit)
-        return (abs(length) * passes_t) / speed_t if speed_t > 0 else 0
+        if speed_t <= 0: return 0
+        
+        radial_depth = abs(d_start - d_end) / 2
+        calculated_passes = math.ceil(radial_depth / depth_limit)
+        passes_t = max(2, calculated_passes) # ПРАВИЛО: всегда минимум 2
+        return (abs(length) * passes_t) / speed_t
 
     total_min = 0
 
@@ -237,8 +288,9 @@ def calculate_lathe_time(item_type, p, m_info):
         t_turn_out = get_turning_time(D1, D, t)
         t_turn_in = get_turning_time(d, D2, t)
         t_face = get_facing_time(D1, D2, delta_S)
-        t_face_groove = get_facing_time(D, DM, a)
-        total_min = t_turn_out + t_turn_in + t_face + t_face_groove
+        t_face_a = get_facing_time(D, DM, a)
+        t_face_c = get_facing_time(D2, DW, c)
+        total_min = t_turn_out + t_turn_in + t_face + t_face_a + t_face_c
 
     elif item_type == "swivel":
         t_turn_out = get_turning_time(D1, D, t)
@@ -347,13 +399,10 @@ def calculate_lathe_time(item_type, p, m_info):
         total_min = t_turn_out + t_face + t_turn_Dc + t_turn_Dm
 
     elif item_type == "rotspher":
-        # 1. Наружное точение (D1 -> D)
         t_out = get_turning_time(D1, D, t)
         
-        # 2. Внутреннее точение (d -> D2)
         t_in = get_turning_time(d, D2, t)
-        
-        # 3. Торцовка заготовки (S -> t)
+
         t_face = get_facing_time(D1, D2, delta_S)
         
         # 4. Обработка сферической части (RS - радиус, RA - угол, as - глубина)

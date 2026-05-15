@@ -28,6 +28,8 @@ class forming(tk.Frame):
         self.ent_t = self.add_entry(left_frame, "Габарит детали t (мм):")
         self.ent_DM = self.add_entry(left_frame, "Диаметр проточки DM (мм):")
         self.ent_a = self.add_entry(left_frame, "Высота проточки a (мм):")
+        self.ent_DW = self.add_entry(left_frame, "Диаметр проточки DW (мм):")
+        self.ent_c = self.add_entry(left_frame, "Высота проточки c (мм):")
 
         self.add_label(left_frame, "--- ПАРАМЕТРЫ ЗАГОТОВКИ ---", bold=True)
         self.ent_D1 = self.add_entry(left_frame, "Внешний диаметр заготовки D1 (мм):")
@@ -151,6 +153,8 @@ class forming(tk.Frame):
                 "t": float(self.ent_t.get() or 0),
                 "DM": float(self.ent_DM.get() or 0),
                 "a": float(self.ent_a.get() or 0),
+                "DW": float(self.ent_DW.get() or 0),
+                "c": float(self.ent_c.get() or 0),
                 "D1": float(self.ent_D1.get() or 0),
                 "D2": float(self.ent_D2.get() or 0),
                 "S": float(self.ent_S.get() or 0)

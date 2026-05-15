@@ -1,5 +1,6 @@
 import tkinter as tk
 from core.utils import resource_path
+from core.utils import ScrollableFrame
 from PIL import Image, ImageTk
 
 
