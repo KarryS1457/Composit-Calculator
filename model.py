@@ -25,7 +25,8 @@ class AppModel:
     def validate_numeric(self, P):
         """Логика валидации ввода (используется в Entry).
         Разрешает только положительные числа, не длиннее 8 символов."""
-        if P == "": 
+        # Разрешаем пустую строку или начало ввода с точки (для дробных чисел)
+        if P == "" or P == ".":
             return True
         try:
             # Проверяем, что это число и оно не отрицательное
@@ -34,6 +35,7 @@ class AppModel:
             return False
         except ValueError:
             return False
+
 
     def get_image_data(self, path):
         """Проверяет наличие картинки и возвращает абсолютный путь"""

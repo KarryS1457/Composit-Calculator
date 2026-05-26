@@ -49,8 +49,8 @@ class TabWeld(tk.Frame):
         tk.Label(self, text=text, font=f).pack(anchor="w")
 
     def add_entry(self):
-        # Берем валидацию из View, к которой есть доступ у Презентера
-        e = tk.Entry(self, validate="key", validatecommand=self.presenter.view.vcmd)
+        # Берем валидацию presenter
+        e = tk.Entry(self, validate="key", validatecommand=self.presenter.vcmd)
         e.pack(fill="x", pady=2)
         e.bind("<Return>", self.move_focus)
         e.bind("<Down>", self.move_focus)

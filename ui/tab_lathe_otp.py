@@ -1,4 +1,5 @@
 import tkinter as tk
+import importlib
 
 class TabLatheOtp(tk.Frame):
     def __init__(self, parent, presenter):
@@ -46,17 +47,20 @@ class TabLatheOtp(tk.Frame):
         self.bind("<Leave>", lambda _: self.canvas.unbind_all("<MouseWheel>"))
 
     def open_detail_screen(self, screen_name):
-        """Ленивый импорт: загружаем класс только в момент нажатия на кнопку"""
-        if screen_name == "axle":
-            from turningotp.axle import axle as screen_class
-        elif screen_name == "shaft":
-            from turningotp.shaft import shaft as screen_class
-        elif screen_name == "bearinghousing":
-            from turningotp.bearinghousing import bearinghousing as screen_class
-        else:
-            return
+        """Динамический ленивый импорт"""
+        try:
+            # Подгружаем модуль по его строковому имени
+            module = importlib.import_module(f"turningotp.{screen_name}")
+            # Достаем из модуля класс с таким же именем
+            screen_class = getattr(module, screen_name)
+           
+            # Вызываем экран только в случае успеха
+            self.presenter.show_lathe_otp_detail(screen_class)
+            
+        except (ImportError, AttributeError) as e:
+            # Если что-то пошло не так, просто печатаем ошибку и не ломаем программу
+            print(f"Ошибка загрузки экрана {screen_name}: {e}")
 
-        self.presenter.show_lathe_otp_detail(screen_class)
 
     def _on_canvas_configure(self, event):
         self.canvas.itemconfig(self.canvas_window, width=event.width)

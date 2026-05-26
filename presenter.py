@@ -18,14 +18,12 @@ class AppPresenter:
 
         # 1. Регистрируем валидацию и сохраняем её в self.vcmd
         self.vcmd = (self.view.register(self.model.validate_numeric), '%P')
-        
-        # Передаем её во View (теперь с self.)
-        self.view.set_vcmd(self.vcmd) 
-
+       
+        # Передаем её во View
+        self.view.set_vcmd(self.vcmd)
 
         # 2. Подписываемся на глобальные клавиши
         self.view.bind_all("<Key>", self._handle_keypress)
-
 
     def start(self):
         """Запуск приложения"""
@@ -55,8 +53,6 @@ class AppPresenter:
     def show_lathe_detail(self, screen_class):
         """Открывает конкретный расчет (например, Фланец)"""
         self.view.clear_screen()
-        # Создаем экран из переданного класса
-        # Передаем self (презентер) как контроллер для этих экранов
         self.current_screen = screen_class(self.view.container, self)
         self.current_screen.pack(fill="both", expand=True)
 
@@ -69,8 +65,6 @@ class AppPresenter:
     def show_lathe_otp_detail(self, screen_class):
         """Открывает конкретный расчет"""
         self.view.clear_screen()
-        # Создаем экран из переданного класса
-        # Передаем self (презентер) как контроллер для этих экранов
         self.current_screen = screen_class(self.view.container, self)
         self.current_screen.pack(fill="both", expand=True)
 
@@ -93,7 +87,7 @@ class AppPresenter:
             # Форматируем результат в красивый текст
             minutes = result["total_sec"] // 60
             seconds = result["total_sec"] % 60
-            
+           
             res_text = (
                 f"РЕЗУЛЬТАТ (Шов {result['gost']}, S={result['s']:.1f}мм)\n"
                 f"-----------------------------------\n"
@@ -110,28 +104,29 @@ class AppPresenter:
         except Exception as e:
             self.view.show_error(f"Сбой расчета: {e}")
 
-    def handle_lathe_calculation(self, item_type, raw_data):
+    def _format_time(self, seconds):
+        """Вспомогательный метод для форматирования секунд в минуты и секунды"""
+        minutes_float = seconds / 60
+        m = int(seconds // 60)
+        s = int(seconds % 60)
+        return f"{seconds:.2f} сек. ({minutes_float:.2f} мин. или {m}м {s}с)"
+
+    def _process_turning_calculation(self, item_type, raw_data):
+        """Единая логика для расчетов токарной обработки (обычной и ОТП)"""
         # 1. Поиск станков
         main_res, alternatives = calc.calculate_turning_parameters(raw_data['D1'])
-        
+       
         if not main_res:
             self.current_screen.show_results("ОШИБКА: Станок не найден")
             return
 
-        # Вспомогательная функция для форматирования вывода
-        def format_time(seconds):
-            minutes = seconds / 60
-            m = int(seconds // 60)
-            s = int(seconds % 60)
-            return f"{seconds:.2f} сек. ({minutes:.2f} мин. или {m}м {s}с)"
-
         # 2. Расчет для основного станка
         main_time_sec = calc.calculate_lathe_time(item_type, raw_data, main_res)
-        
+       
         res_text = (
             f"ОСНОВНОЙ СТАНОК: {main_res['machine']}\n"
             f"Обороты (D): {main_res['rpm']} об/мин\n"
-            f"ВРЕМЯ ИТОГО: {format_time(main_time_sec)}\n"
+            f"ВРЕМЯ ИТОГО: {self._format_time(main_time_sec)}\n"
             f"{'-'*40}\n"
         )
 
@@ -140,65 +135,35 @@ class AppPresenter:
             res_text += "АЛЬТЕРНАТИВНЫЕ ВАРИАНТЫ:\n"
             for alt in alternatives:
                 alt_time_sec = calc.calculate_lathe_time(item_type, raw_data, alt)
-                res_text += f"- {alt['machine']}: {format_time(alt_time_sec)}\n"
+                res_text += f"- {alt['machine']}: {self._format_time(alt_time_sec)}\n"
 
         self.current_screen.show_results(res_text)
+
+    def handle_lathe_calculation(self, item_type, raw_data):
+        """Обертка для расчета стандартной токарки"""
+        self._process_turning_calculation(item_type, raw_data)
 
     def handle_lathe_otp_calculation(self, item_type, raw_data):
-        # 1. Поиск станков
-        main_res, alternatives = calc.calculate_turning_parameters(raw_data['D1'])
-        
-        if not main_res:
-            self.current_screen.show_results("ОШИБКА: Станок не найден")
-            return
-
-        # Вспомогательная функция для форматирования вывода
-        def format_time(seconds):
-            minutes = seconds / 60
-            m = int(seconds // 60)
-            s = int(seconds % 60)
-            return f"{seconds:.2f} сек. ({minutes:.2f} мин. или {m}м {s}с)"
-
-        # 2. Расчет для основного станка
-        main_time_sec = calc.calculate_lathe_time(item_type, raw_data, main_res)
-        
-        res_text = (
-            f"ОСНОВНОЙ СТАНОК: {main_res['machine']}\n"
-            f"Обороты (D): {main_res['rpm']} об/мин\n"
-            f"ВРЕМЯ ИТОГО: {format_time(main_time_sec)}\n"
-            f"{'-'*40}\n"
-        )
-
-        # 3. Расчет для альтернатив
-        if alternatives:
-            res_text += "АЛЬТЕРНАТИВНЫЕ ВАРИАНТЫ:\n"
-            for alt in alternatives:
-                alt_time_sec = calc.calculate_lathe_time(item_type, raw_data, alt)
-                res_text += f"- {alt['machine']}: {format_time(alt_time_sec)}\n"
-
-        self.current_screen.show_results(res_text)
-
-
+        """Обертка для расчета токарки ОТП"""
+        self._process_turning_calculation(item_type, raw_data)
 
     # --- СЕКРЕТНАЯ ЛОГИКА (Пасхалка) ---
     def _handle_keypress(self, event):
-        # Строка 80 (ОБЯЗАТЕЛЬНО ОТСТУП 8 пробелов от края файла)
         char = event.char.lower()
-        if not char: 
+        if not char:
             return
-        
+       
         # Логика замены раскладки
         replacements = {'с': 'c', 'р': 'h', 'г': 'u'}
         char = replacements.get(char, char)
-        
+       
         # Обновляем буфер (используем длину кода из модели)
         code_len = len(self.model.secret_code)
         self.typed_buffer = (self.typed_buffer + char)[-code_len:]
-        
+       
         # Проверяем секрет через модель
         if self.model.check_secret(self.typed_buffer):
             self.animate_secret(10)
-
 
     def animate_secret(self, size):
         try:
@@ -210,7 +175,7 @@ class AppPresenter:
                 resample_mode = getattr(Image, 'Resampling', Image).LANCZOS
                 resized = original.resize((size, size), resample_mode)
                 photo = ImageTk.PhotoImage(resized)
-                
+               
                 self.view.show_secret_image(photo)
                 # Зацикливаем анимацию через View
                 self.view.after(15, lambda: self.animate_secret(size + 25))

@@ -14,12 +14,13 @@ def resource_path(relative_path):
 
 class ScrollableFrame(tk.Frame):
     """Универсальный фрейм с вертикальной прокруткой"""
-    def init(self, container, *args, **kwargs):
-        super().init(container, *args, **kwargs)
+    # ИСПРАВЛЕНО: Добавлены двойные подчеркивания для __init__
+    def __init__(self, container, *args, **kwargs):
+        super().__init__(container, *args, **kwargs)
 
         # 1. Создаем Canvas (он умеет прокручиваться)
         self.canvas = tk.Canvas(self, borderwidth=0, highlightthickness=0)
-        
+       
         # 2. Создаем ползунок и привязываем его к Canvas
         self.scrollbar = tk.Scrollbar(self, orient="vertical", command=self.canvas.yview)
         self.canvas.configure(yscrollcommand=self.scrollbar.set)
@@ -51,13 +52,15 @@ class ScrollableFrame(tk.Frame):
         self.canvas.itemconfig(self.canvas_window, width=event.width)
 
     def bind_mouse_scroll(self, widget):
-        """Рекурсивно биндим колесико мыши ко всем элементам (важно для Windows/Mac)"""
+        """Биндим колесико мыши ко всем элементам при наведении"""
         widget.bind("<Enter>", self._bind_wheel)
         widget.bind("<Leave>", self._unbind_wheel)
 
     def _bind_wheel(self, event):
-        # Для Windows и Mac
+        # ИСПРАВЛЕНО: Добавлена полная поддержка Windows, Mac и Linux
         self.canvas.bind_all("<MouseWheel>", self._on_mousewheel)
+        self.canvas.bind_all("<Button-4>", self._on_mousewheel)
+        self.canvas.bind_all("<Button-5>", self._on_mousewheel)
 
     def _unbind_wheel(self, event):
         self.canvas.unbind_all("<MouseWheel>")
@@ -65,6 +68,7 @@ class ScrollableFrame(tk.Frame):
         self.canvas.unbind_all("<Button-5>")
 
     def _on_mousewheel(self, event):
+        # Универсальная обработка прокрутки
         if event.num == 4 or event.delta > 0:  # Вверх
             self.canvas.yview_scroll(-1, "units")
         elif event.num == 5 or event.delta < 0: # Вниз

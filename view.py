@@ -1,21 +1,24 @@
 import tkinter as tk
+from tkinter import messagebox  # Вынесли импорт наверх по стандарту PEP 8
+
 
 class MainView(tk.Tk):
     def __init__(self):
         super().__init__()
-        # Базовые настройки окна (берем из твоего исходного кода)
+        # Базовые настройки окна
         self.title("Калькулятор Composit")
         self.geometry("700x850")
         self.minsize(400, 650)
 
+        # Загрузка иконки
         try:
-            self.app_icon=tk.PhotoImage(file="icon.ico")
-            self.iconphoto(False, self.app_icon)
+            # Для Windows и .exe сборок метод iconbitmap работает с .ico идеально
+            self.iconbitmap("icon.ico")
         except Exception as e:
-            print ("Ошибка загрузки иконки: {e}")
+            # Добавлена f перед строкой, чтобы переменная {e} сработала
+            print(f"Ошибка загрузки иконки: {e}")
 
         # Контейнер для экранов (MainMenu, TabWeld и т.д.)
-        # Мы будем удалять старые виджеты внутри него и вставлять новые
         self.container = tk.Frame(self, padx=20, pady=20)
         self.container.pack(fill="both", expand=True)
 
@@ -47,5 +50,4 @@ class MainView(tk.Tk):
 
     def show_error(self, message):
         """Универсальный метод для вывода критических ошибок в окно"""
-        from tkinter import messagebox
         messagebox.showerror("Ошибка", message)

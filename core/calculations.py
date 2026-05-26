@@ -188,10 +188,6 @@ def calculate_lathe_time(item_type, p, m_info):
     m_params = data.FEEDRATE_DATA.get(current_machine, [3, 0.15, 0.25])
     depth_limit, feed_turn, feed_face = m_params
 
-    # Записываем обновленные данные обратно в переменные для логирования (опционально)
-    p['D1'], p['D2'], p['S'] = final_D1, D2, S
-    delta_S = S - t
-
     # Локальная функция точного поиска оборотов шпинделя
     def get_rpm_for_diam(diameter):
         diams, rpms = data.TURNING_DATA.get(current_machine, ([], []))
@@ -230,27 +226,32 @@ def calculate_lathe_time(item_type, p, m_info):
         passes_t = max(2, calculated_passes)
         return (abs(length) * passes_t) / speed_t
 
-    def get_thread_time(th_diameter, th_pitch, th_lenght, th_pos, th_depth_cut):
-        rpm = get_rpm_for_diam(th_diameter)
+    def get_thread_time(th_diameter, th_pitch, th_lenght, th_pos, th_depth_cut, is_machine=True):
+        # Используем данные из "Обороты резьба машин.csv"
+        if th_pos: # Внешняя резьба
+            rpm = 15 if is_machine else 10
+        else:      # Внутренняя резьба
+            rpm = 100 if is_machine else 12
+            
         if rpm <= 0 or th_pitch <= 0: return 0.0
-        
+       
         th_depth = 0.6134 * th_pitch if th_pos else 0.5413 * th_pitch
         th_passes = math.ceil(th_depth / th_depth_cut)
         return (th_lenght * th_passes) / (rpm * th_pitch)
+
 
     total_min = 0.0
 
     # --- ЛОГИКА ПО ТИПАМ ---
     if item_type == "adapter":
         ch5_val = to_float(p.get('ch5', 0))
-        t_turn_out = get_turning_time(D1, D, t - ch5_val)
+        t_turn_out = get_turning_time(D1, D, t)
         t_turn_in = get_turning_time(d, D2, t)
         t_face = get_facing_time(D1, D2, delta_S)
-        t_face_groove = get_facing_time(D, DM, ch5_val)
-
+        t_turn_step = get_turning_time(D, DM, ch5_val)
         rpm_k = get_rpm_for_diam(to_float(p.get('Dk', 0)))
         t_grooves = (to_float(p.get('P', 0)) * to_float(p.get('n', 0))) / (feed_face * rpm_k) if rpm_k > 0 else 0
-        total_min = t_turn_out + t_turn_in + t_face + t_face_groove + t_grooves
+        total_min = t_turn_out + t_turn_in + t_face + t_turn_step + t_grooves
 
     elif item_type == "circle":
         t_turn_out = get_turning_time(D1, D, t)
@@ -273,7 +274,7 @@ def calculate_lathe_time(item_type, p, m_info):
     elif item_type == "shell":
         t_turn_out = get_turning_time(D1, D, t)
         t_turn_in = get_turning_time(d, D2, t)
-        t_face = get_facing_time(D1, D, delta_S)
+        t_face = get_facing_time(D1, D2, delta_S)
         total_min = t_turn_out + t_face + t_turn_in
 
     elif item_type == "forming":
