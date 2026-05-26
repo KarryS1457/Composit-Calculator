@@ -226,6 +226,8 @@ def calculate_lathe_time(item_type, p, m_info):
         passes_t = max(2, calculated_passes)
         return (abs(length) * passes_t) / speed_t
 
+
+# th_diameter ну же ли???
     def get_thread_time(th_diameter, th_pitch, th_lenght, th_pos, th_depth_cut, is_machine=True):
         # Используем данные из "Обороты резьба машин.csv"
         if th_pos: # Внешняя резьба
