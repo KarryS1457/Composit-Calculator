@@ -241,19 +241,25 @@ def calculate_lathe_time(item_type, p, m_info):
         th_passes = math.ceil(th_depth / th_depth_cut)
         return (th_lenght * th_passes) / (rpm * th_pitch)
 
-
     total_min = 0.0
 
     # --- ЛОГИКА ПО ТИПАМ ---
     if item_type == "adapter":
         ch5_val = to_float(p.get('ch5', 0))
+        
         t_turn_out = get_turning_time(D1, D, t)
         t_turn_in = get_turning_time(d, D2, t)
         t_face = get_facing_time(D1, D2, delta_S)
         t_turn_step = get_turning_time(D, DM, ch5_val)
+        
         rpm_k = get_rpm_for_diam(to_float(p.get('Dk', 0)))
-        t_grooves = (to_float(p.get('P', 0)) * to_float(p.get('n', 0))) / (feed_face * rpm_k) if rpm_k > 0 else 0
-        total_min = t_turn_out + t_turn_in + t_face + t_turn_step + t_grooves
+        t_grooves = (to_float(p.get('P', 0)) * to_float(p.get('n', 0))) / (0.1 * rpm_k) if rpm_k > 0 else 0
+        
+        ch_total = to_float(p.get('ch1', 0)) + to_float(p.get('ch2', 0)) + to_float(p.get('ch3', 0)) + to_float(p.get('ch4', 0))
+        rpm_ch = get_rpm_for_diam(D)
+        t_chams = (ch_total / (feed_turn * rpm_ch)) if (ch_total > 0 and rpm_ch > 0) else 0
+        
+        total_min = t_turn_out + t_turn_in + t_face + t_turn_step + t_grooves + t_chams
 
     elif item_type == "circle":
         t_turn_out = get_turning_time(D1, D, t)
@@ -267,11 +273,17 @@ def calculate_lathe_time(item_type, p, m_info):
         K_val = to_float(p.get('K', 0))
 
         t_turn_out = get_turning_time(D1, D, t)
-        t_turn_in = get_turning_time(d, D2, t - E_val)
+        t_turn_in = get_turning_time(d, D2, t)
         t_face = get_facing_time(D1, D2, delta_S)
-        t_face_groove = get_facing_time(Dm1_val, D2, E_val)
-        t_face_K = get_facing_time(Dm1_val, dm2_val, (K_val - E_val))
-        total_min = t_turn_out + t_turn_in + t_face + t_face_groove + t_face_K
+        
+        t_turn_K = get_turning_time(dm2_val, d, K_val)
+        t_turn_E = get_turning_time(Dm1_val, dm2_val, E_val)
+        
+        ch_total = to_float(p.get('ch1', 0)) + to_float(p.get('ch2', 0)) + to_float(p.get('ch3', 0))
+        rpm_ch = get_rpm_for_diam(D)
+        t_chams = (ch_total / (feed_turn * rpm_ch)) if (ch_total > 0 and rpm_ch > 0) else 0
+
+        total_min = t_turn_out + t_turn_in + t_face + t_turn_K + t_turn_E + t_chams
 
     elif item_type == "shell":
         t_turn_out = get_turning_time(D1, D, t)
@@ -280,18 +292,48 @@ def calculate_lathe_time(item_type, p, m_info):
         total_min = t_turn_out + t_face + t_turn_in
 
     elif item_type == "forming":
+        # 1. Основное наружное точение (от заготовки D1 до D на всю длину t)
         t_turn_out = get_turning_time(D1, D, t)
+        
+        # 2. Основное внутреннее растачивание (от отверстия заготовки D2 до d на всю длину t)
         t_turn_in = get_turning_time(d, D2, t)
+        
+        # 3. Торцевание общее (снимаем припуск по торцу delta_S от D1 до D2)
         t_face = get_facing_time(D1, D2, delta_S)
+        
+        # 4. Наружная проточка (ступень от наружного D до DM на глубину a)
         t_face_a = get_facing_time(D, DM, a)
-        t_face_c = get_facing_time(D2, DW, c)
-        total_min = t_turn_out + t_turn_in + t_face + t_face_a + t_face_c
+        
+        # 5. Внутренняя расточка ступени (ИСПРАВЛЕНО: от готового d до DW на глубину c)
+        t_face_c = get_facing_time(d, DW, c)
+        
+        # 6. ДОБАВЛЕНО: Снятие всех 4-х фасок по чертежу
+        ch_total = (to_float(p.get('ch1', 0)) + to_float(p.get('ch2', 0)) + 
+                    to_float(p.get('ch3', 0)) + to_float(p.get('ch4', 0)))
+        t_chams = 0
+        if ch_total > 0:
+            rpm_ch = get_rpm_for_diam(D) # Берем средние обороты по наружному диаметру
+            t_chams = (ch_total / (feed_turn * rpm_ch)) if rpm_ch > 0 else 0
+        
+        total_min = t_turn_out + t_turn_in + t_face + t_face_a + t_face_c + t_chams
 
     elif item_type == "swivel":
+        # 1. Наружное точение (от заготовки D1 до D на всю длину t)
         t_turn_out = get_turning_time(D1, D, t)
+        
+        # 2. Внутреннее растачивание (от отверстия заготовки D2 до d на всю длину t)
         t_turn_in = get_turning_time(d, D2, t)
+        
+        # 3. Торцевание (снимаем припуск по торцу delta_S от D1 до D2)
         t_face = get_facing_time(D1, D2, delta_S)
-        total_min = t_turn_out + t_turn_in + t_face
+        
+        # 4. ДОБАВЛЕНО: Снятие фасок (ch1 и ch2 по чертежу)
+        ch_total = to_float(p.get('ch1', 0)) + to_float(p.get('ch2', 0))
+        rpm_ch = get_rpm_for_diam(D)
+        t_chams = (ch_total / (feed_turn * rpm_ch)) if (ch_total > 0 and rpm_ch > 0) else 0
+        
+        total_min = t_turn_out + t_turn_in + t_face + t_chams
+
 
     elif item_type == "weldring":
         b_val = to_float(p.get('b', 0))
@@ -308,10 +350,14 @@ def calculate_lathe_time(item_type, p, m_info):
 
     elif item_type == "welding_tnf":
         t_turn_out = get_turning_time(D1, D, t)
-        t_turn_in = get_turning_time(d, D2, t - a)
+        t_turn_in = get_turning_time(d, D2, t)
         t_face = get_facing_time(D1, D2, delta_S)
-        t_face_groove = get_facing_time(DM, D2, a)
-        total_min = t_turn_out + t_turn_in + t_face + t_face_groove
+        t_turn_step = get_turning_time(DM, d, a)
+        ch_total = to_float(p.get('ch1', 0)) + to_float(p.get('ch2', 0)) + to_float(p.get('ch3', 0))
+        rpm_ch = get_rpm_for_diam(D)
+        t_chams = (ch_total / (feed_turn * rpm_ch)) if (ch_total > 0 and rpm_ch > 0) else 0
+        total_min = t_turn_out + t_turn_in + t_face + t_turn_step + t_chams
+
 
     elif item_type == "welding_flange":
         b_val = to_float(p.get('b', 0))
