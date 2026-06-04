@@ -1,6 +1,7 @@
 import math
 import core.data as data
 from core.data import TURNING_DATA, RANGES_DATA, AWC_S, AWC_DATA
+from core.logger import log
 
 def trend_extrapolation(x_val, x_list, y_list):
     n_points = min(4, len(x_list))
@@ -176,13 +177,29 @@ def calculate_lathe_time(item_type, p, m_info):
     final_D1 = user_D1 if user_D1 > 0 else D1_auto
     D2 = user_D2 if user_D2 > 0 else (max(0.0, d - allowance) if d > 0 else 0.0)
 
-    # 2. КРИТИЧЕСКОЕ ОБНОВЛЕНИЕ: Переопределяем станок на основе РЕАЛЬНОГО диаметра заготовки (final_D1)
-    # Если заготовка 310мм, мы ОБЯЗАНЫ переключить расчет на 1М63, даже если GUI передал 16К20
+
+    log.debug(f"Старт расчета {item_type}. Параметры GUI: {p}, Станок: {m_info.get('machine')}")
+
+    # 2. КРИТИЧЕСКОЕ ОБНОВЛЕНИЕ: Переопределяем станок на основе РЕАЛЬНОГО диаметра
     current_machine = m_info.get('machine')
     for name, (low, high) in data.RANGES_DATA.items():
         if low <= final_D1 <= high:
+            # Если программа переключила станок — обязательно пишем это в лог (уровень WARNING или INFO)
+            if current_machine != name:
+                log.warning(f"АВТОКОРРЕКЦИЯ: Станок изменен с {current_machine} на {name} "
+                            f"(диаметр заготовки {final_D1} мм не влезает в {current_machine})")
             current_machine = name
             break
+
+    current_machine = m_info.get('machine')
+    for name, (low, high) in data.RANGES_DATA.items():
+        if low <= final_D1 <= high:
+            if current_machine != name:
+                log.warning(f"АВТОКОРРЕКЦИЯ: Станок изменен с {current_machine} на {name} "
+                            f"(диаметр заготовки {final_D1} мм)")
+            current_machine = name
+            break
+
 
     # Обновляем технологические параметры под актуальный станок
     m_params = data.FEEDRATE_DATA.get(current_machine, [3, 0.15, 0.25])
@@ -473,4 +490,9 @@ def calculate_lathe_time(item_type, p, m_info):
         
         total_min = (t_cyclic_one * n_qty) + t_face_total
 
-    return (total_min * 60) * get_AWC_coeff(D, S)
+    final_time_sec = (total_min * 60) * get_AWC_coeff(D, S)
+    
+    log.info(f"Успешный расчет {item_type}. Чистое машинное время: {total_min:.2f} мин. "
+             f"Итоговое время (с коэфф): {final_time_sec:.2f} сек.")
+             
+    return final_time_sec
