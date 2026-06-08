@@ -5,20 +5,35 @@ import tkinter as tk
 from tkinter import filedialog
 from tkinterdnd2 import TkinterDnD, DND_FILES
 
-def calculate_cutting_length(dxf_file_path, target_layer=None):
+def analyze_dxf_geometry(dxf_file_path, target_layer=None):
     try:
         doc = ezdxf.readfile(dxf_file_path)
         msp = doc.modelspace()
         total_length = 0.0
+        
+        # Словарь для подсчета количества вхождений каждой точки
+        point_counts = {}
 
-        def calc_primitive_length(entity):
+        def add_point(p):
+            # Округляем до 3 знаков (до микронов), чтобы сгладить мелкие погрешности CAD-систем
+            coord = (round(p.x, 3), round(p.y, 3))
+            point_counts[coord] = point_counts.get(coord, 0) + 1
+
+        def process_primitive(entity):
             length = 0.0
             if entity.dxftype() == 'LINE':
                 start = entity.dxf.start
                 end = entity.dxf.end
                 length = math.hypot(end.x - start.x, end.y - start.y)
+                
+                # Добавляем начало и конец отрезка в словарь
+                add_point(start)
+                add_point(end)
+
             elif entity.dxftype() == 'CIRCLE':
                 length = 2 * math.pi * entity.dxf.radius
+                # Круг всегда замкнут сам на себя, его точки учитывать не нужно
+
             elif entity.dxftype() == 'ARC':
                 radius = entity.dxf.radius
                 start_angle = math.radians(entity.dxf.start_angle)
@@ -26,6 +41,11 @@ def calculate_cutting_length(dxf_file_path, target_layer=None):
                 if end_angle < start_angle:
                     end_angle += 2 * math.pi
                 length = radius * (end_angle - start_angle)
+                
+                # У дуги ezdxf есть встроенные свойства start_point и end_point
+                add_point(entity.start_point)
+                add_point(entity.end_point)
+
             return length
 
         for entity in msp:
@@ -33,13 +53,22 @@ def calculate_cutting_length(dxf_file_path, target_layer=None):
                 continue
 
             if entity.dxftype() in ['LINE', 'CIRCLE', 'ARC']:
-                total_length += calc_primitive_length(entity)
+                total_length += process_primitive(entity)
             
             elif entity.dxftype() in ['LWPOLYLINE', 'POLYLINE', 'SPLINE']:
                 for sub_entity in entity.virtual_entities():
-                    total_length += calc_primitive_length(sub_entity)
+                    total_length += process_primitive(sub_entity)
 
-        return total_length
+        # Анализ топологии: ищем точки, которые встречаются нечетное количество раз (обычно 1)
+        open_ends = sum(1 for count in point_counts.values() if count % 2 != 0)
+        
+        # Если "висячих" концов нет, контур замкнут
+        is_closed = (open_ends == 0)
+        
+        # Количество самих разрывов равно количеству свободных концов, поделенному на 2
+        gaps_count = open_ends // 2
+
+        return total_length, is_closed, gaps_count
 
     except Exception as e:
         raise Exception(f"Ошибка при чтении DXF: {e}")
@@ -47,27 +76,35 @@ def calculate_cutting_length(dxf_file_path, target_layer=None):
 # --- Логика интерфейса ---
 
 def process_file(file_path):
-    """Выполняет расчет и обновляет текст в главном окне"""
     clean_path = file_path.strip('{}')
-    # Получаем только имя файла из полного пути
     filename = os.path.basename(clean_path)
     
     try:
-        length_mm = calculate_cutting_length(clean_path)
+        # Теперь функция возвращает три параметра
+        length_mm, is_closed, gaps_count = analyze_dxf_geometry(clean_path)
         length_m = length_mm / 1000
         
-        # Формируем строку с результатом и выводим в окно
+        # Формируем статус замкнутости
+        if is_closed:
+            closure_status = "Да (Контур цельный)"
+            status_color = "#006600" # Темно-зеленый
+        else:
+            closure_status = f"НЕТ! Обнаружено разрывов: {gaps_count}"
+            status_color = "#CC0000" # Красный
+        
         result_text.set(
             f"Файл: {filename}\n"
             f"────────────────────────\n"
             f"Длина контура: {length_mm:.2f} мм\n"
-            f"В метрах: {length_m:.3f} м"
+            f"В метрах: {length_m:.3f} м\n"
+            f"────────────────────────\n"
+            f"Замкнут: {closure_status}"
         )
-        # Если до этого была ошибка (красный текст), возвращаем черный
-        result_label.config(fg="#333333") 
+        
+        # Подсвечиваем результат в зависимости от того, замкнут контур или нет
+        result_label.config(fg=status_color)
         
     except Exception as e:
-        # Выводим ошибку прямо в окно красным цветом
         result_text.set(f"Ошибка загрузки:\n{filename}\n{str(e)}")
         result_label.config(fg="red")
 
@@ -86,8 +123,8 @@ def handle_drop(event):
 
 root = TkinterDnD.Tk()
 root.title("Анализ контуров | Comp-Norm-Calc")
-# Немного увеличим окно, чтобы вместить текст
-root.geometry("400x250")
+# Увеличим высоту окна еще немного под новую строку
+root.geometry("400x280")
 root.eval('tk::PlaceWindow . center')
 
 root.drop_target_register(DND_FILES)
@@ -99,19 +136,15 @@ label.pack()
 calc_btn = tk.Button(root, text="Выбрать файл вручную", command=select_file_and_calculate, height=2, width=30)
 calc_btn.pack(pady=5)
 
-# --- Блок вывода результатов ---
-# Переменная, которая будет динамически менять текст в Label
 result_text = tk.StringVar()
 result_text.set("Ожидание файла...")
 
-# Само текстовое поле для результата
 result_label = tk.Label(
     root, 
     textvariable=result_text, 
     font=("Consolas", 11), 
-    pady=15, 
-    justify="center",
-    fg="#555555" # Темно-серый цвет по умолчанию
+    pady=10, 
+    justify="center"
 )
 result_label.pack()
 

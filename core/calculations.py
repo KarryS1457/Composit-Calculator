@@ -244,7 +244,7 @@ def calculate_lathe_time(item_type, p, m_info):
         return (abs(length) * passes_t) / speed_t
 
 
-# th_diameter ну же ли???
+    # th_diameter ну же ли???
     def get_thread_time(th_diameter, th_pitch, th_lenght, th_pos, th_depth_cut, is_machine=True):
         # Используем данные из "Обороты резьба машин.csv"
         if th_pos: # Внешняя резьба
@@ -257,6 +257,48 @@ def calculate_lathe_time(item_type, p, m_info):
         th_depth = 0.6134 * th_pitch if th_pos else 0.5413 * th_pitch
         th_passes = math.ceil(th_depth / th_depth_cut)
         return (th_lenght * th_passes) / (rpm * th_pitch)
+
+    def get_grooving_time(D_max, D_min, width, insert_width=3.0, feed_groove=0.1):
+        """
+        Расчет машинного времени на прорезание канавки (наружной или внутренней).
+    
+        :param D_max: Больший диаметр канавки (мм)
+        :param D_min: Меньший диаметр канавки (мм)
+        :param width: Ширина канавки по чертежу (мм)
+        :param insert_width: Ширина канавочного резца (мм). По умолчанию 3.0 мм.
+        :param feed_groove: Подача при врезании (мм/об). Обычно она меньше продольной, по умолчанию 0.1.
+        :return: Машинное время в минутах
+        """
+        D_max = float(D_max)
+        D_min = float(D_min)
+        width = float(width)
+
+        # Защита от нулевых или некорректных значений
+        if width <= 0 or D_max <= D_min:
+            return 0.0
+
+        # 1. Радиальная глубина врезания (на одну сторону)
+        h = (D_max - D_min) / 2.0
+
+        # 2. Количество проходов (врезаний)
+        # Округляем вверх: если канавка 10 мм, а резец 3 мм, понадобится 4 врезания
+        passes = math.ceil(width / insert_width)
+
+        # 3. Расчет оборотов шпинделя
+        # Берем средний диаметр обработки для определения скорости резания
+        D_avg = (D_max + D_min) / 2.0
+        rpm = get_rpm_for_diam(D_avg)  # Эта функция уже должна быть в твоем коде
+
+        if rpm <= 0:
+            return 0.0
+
+        # 4. Расчет времени одного врезания
+        time_per_pass = h / (feed_groove * rpm)
+
+        # Итоговое время = время одного врезания умножить на количество проходов
+        total_time = time_per_pass * passes
+
+        return total_time
 
     total_min = 0.0
 
@@ -489,6 +531,81 @@ def calculate_lathe_time(item_type, p, m_info):
         t_face_total = get_facing_time(D1, 0, delta_S)
         
         total_min = (t_cyclic_one * n_qty) + t_face_total
+
+
+    elif item_type == "hub_composite_solid":
+        # =======================================================
+        # ОПЕРАЦИЯ 1: Из кругляка (До сборки)
+        # Универсальный расчет для любых размеров
+        # =======================================================
+        
+        # Считываем габариты из интерфейса (по умолчанию 0, если поле пустое)
+        D1 = to_float(p.get('D1', 0))             # Диаметр кругляка-заготовки
+        t_len = to_float(p.get('t', 0))           # Общая длина детали
+        
+        # Наружные контуры
+        Dt = to_float(p.get('Dt', 0))             # Максимальный наружный диаметр ступицы
+        Dc1 = to_float(p.get('Dc1', 0))           # Диаметр левого концевого уступа
+        Dc2 = to_float(p.get('Dc2', 0))           # Диаметр правого концевого уступа
+        len_c1 = to_float(p.get('len_c1', 0))     # Длина левого уступа
+        len_c2 = to_float(p.get('len_c2', 0))     # Длина правого уступа
+        
+        # Внутренние контуры
+        D2 = to_float(p.get('D2', 0))             # Черновой диаметр центрального отверстия
+        Dm = to_float(p.get('Dm', 0))             # Диаметр внутренней расточки (борта)
+        len_bore = to_float(p.get('len_bore', 0)) # Глубина внутренней расточки (на чертеже было 80)
+        m_val = to_float(p.get('m', 0))           # Ширина внутренней канавки
+        
+        # 1. Торцевание сплошного кругляка (от D1 до центра)
+        t_face = get_facing_time(D1, 0, delta_S)
+        
+        # 2. Сверление и черновое растачивание (от сплошного металла 0 до чернового D2)
+        t_drill_rough = get_turning_time(D2, 0, t_len)
+        
+        # 3. Расточка внутренней ступени (от чернового D2 до Dm на заданную глубину)
+        t_bore_left = get_turning_time(Dm, D2, len_bore)
+        
+        # 4. Прорезание внутренней канавки
+        t_groove = get_grooving_time(Dm, D2, m_val) 
+        
+        # 5. Наружная обточка базового цилиндра (со сплошного D1 до Dt)
+        t_turn_outer_max = get_turning_time(D1, Dt, t_len)
+        
+        # 6. Проточка наружных концевых уступов
+        t_step_left = get_turning_time(Dt, Dc1, len_c1)
+        t_step_right = get_turning_time(Dt, Dc2, len_c2)
+        
+        # 7. Суммарное время на все фаски
+        ch_total = to_float(p.get('ch1', 0)) + to_float(p.get('ch2', 0)) + to_float(p.get('ch3', 0))
+        rpm_ch = get_rpm_for_diam(Dt)
+        t_chams = (ch_total / (feed_turn * rpm_ch)) if (ch_total > 0 and rpm_ch > 0) else 0
+
+        # Итоговое время 1-й операции
+        total_min = t_face + t_drill_rough + t_bore_left + t_groove + t_turn_outer_max + t_step_left + t_step_right + t_chams
+
+    elif item_type == "hub_composite_assembly":
+        # =======================================================
+        # ОПЕРАЦИЯ 2: Доработка в сборе
+        # Обрабатывается только чистовой внутренний размер [d2]
+        # =======================================================
+        
+        t_len = to_float(p.get('t', 0))           # Общая длина
+        len_bore = to_float(p.get('len_bore', 0)) # Глубина левой расточки (уже сделана на 1-й операции)
+        
+        D2 = to_float(p.get('D2', 0))             # Черновое отверстие, которое пришло со сварки
+        d2 = to_float(p.get('d2', 0))             # Чистовой размер в квадратных скобках
+        
+        # Вычисляем длину, которую нужно расточить в сборе 
+        # (общая длина минус та часть, которая уже расточена под Dm)
+        bore_length = t_len - len_bore 
+        
+        if bore_length > 0 and d2 > D2:
+            t_turn_assembly = get_turning_time(d2, D2, bore_length)
+        else:
+            t_turn_assembly = 0
+            
+        total_min = t_turn_assembly
+
 
     final_time_sec = (total_min * 60) * get_AWC_coeff(D, S)
     
