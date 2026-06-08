@@ -80,14 +80,14 @@ def process_file(file_path):
     filename = os.path.basename(clean_path)
     
     try:
-        # Теперь функция возвращает три параметра
+        # Функция возвращает три параметра (Длина, замкнутость, кол-во разрывов)
         length_mm, is_closed, gaps_count = analyze_dxf_geometry(clean_path)
         length_m = length_mm / 1000
         
         # Формируем статус замкнутости
         if is_closed:
             closure_status = "Да (Контур цельный)"
-            status_color = "#006600" # Темно-зеленый
+            status_color = "#006600" # Зеленый
         else:
             closure_status = f"НЕТ! Обнаружено разрывов: {gaps_count}"
             status_color = "#CC0000" # Красный
@@ -101,7 +101,7 @@ def process_file(file_path):
             f"Замкнут: {closure_status}"
         )
         
-        # Подсвечиваем результат в зависимости от того, замкнут контур или нет
+        # Окрашиваем текст в зависимости от результата проверки замкнутости контура
         result_label.config(fg=status_color)
         
     except Exception as e:
@@ -119,18 +119,17 @@ def select_file_and_calculate():
 def handle_drop(event):
     process_file(event.data)
 
-# --- Настройка графического окна ---
+# Настройка графического интерфейса
 
 root = TkinterDnD.Tk()
 root.title("Анализ контуров | Comp-Norm-Calc")
-# Увеличим высоту окна еще немного под новую строку
 root.geometry("400x280")
 root.eval('tk::PlaceWindow . center')
 
 root.drop_target_register(DND_FILES)
 root.dnd_bind('<<Drop>>', handle_drop)
 
-label = tk.Label(root, text="Перетащите DXF-файл сюда\nили нажмите кнопку", pady=10, font=("Arial", 10))
+label = tk.Label(root, text="Перетащите DXF-файл сюда\nили нажмите кнопку для выбора файла вручную", pady=10, font=("Arial", 10))
 label.pack()
 
 calc_btn = tk.Button(root, text="Выбрать файл вручную", command=select_file_and_calculate, height=2, width=30)
