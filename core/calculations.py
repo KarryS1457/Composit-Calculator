@@ -209,6 +209,11 @@ def calculate_lathe_time(item_type, p, m_info):
     p['D1'], p['D2'], p['S'] = D1, D2, S
     delta_S = S - t
 
+    # Продольная скорость: единая для наружного и внутреннего точения (Excel B55)
+    # Оба используют обороты по среднему диаметру заготовки/детали avg(D1, D)
+    rpm_long = get_rpm_for_diam((D1 + D) / 2) if D1 > 0 and D > 0 else get_rpm_for_diam(D)
+    speed_long = feed_turn * rpm_long
+
     def get_facing_time(d_start, d_end, thickness):
         if thickness <= 0 or abs(d_start - d_end) < 0.01: return 0
         path_length = abs(d_start - d_end)  # полный диаметр (как в Excel)
@@ -220,18 +225,21 @@ def calculate_lathe_time(item_type, p, m_info):
         return (path_length * passes_f) / speed_f
 
     def get_turning_time(d_start, d_end, length):
+        """Продольное точение — использует единую speed_long (как Excel B55 для B103+B104)."""
         if length <= 0 or abs(d_start - d_end) < 0.1: return 0
-        rpm_t = get_rpm_for_diam(max(d_start, d_end))
-        speed_t = feed_turn * rpm_t
-        if speed_t <= 0: return 0
+        if speed_long <= 0: return 0
         radial_depth = abs(d_start - d_end) / 2
         passes_t = max(2, math.ceil(radial_depth / siem_long))
-        return (abs(length) * passes_t) / speed_t
+        return (abs(length) * passes_t) / speed_long
 
-    def get_chamfer_time(chamfers):
-        """chamfers: список длин фасок в мм (уже с учётом угла, или как есть)"""
-        import math as _math
-        total = sum(ch / _math.cos(_math.radians(45)) for ch in chamfers if ch > 0)
+    def get_chamfer_time(chamfers, angles=None):
+        """chamfers: list of chamfer sizes (mm). angles: list of angles (same units as Excel cell,
+        treated as radians directly — matches Excel COS(angle) behaviour). Default angle=45."""
+        if angles is None:
+            angles = [45] * len(chamfers)
+        total = sum(
+            ch / math.cos(ang) for ch, ang in zip(chamfers, angles) if ch > 0
+        )
         return total / chamfer_speed if chamfer_speed > 0 else 0
 
 
@@ -296,8 +304,8 @@ def calculate_lathe_time(item_type, p, m_info):
     # --- ЛОГИКА ПО ТИПАМ ---
     if item_type == "adapter":
         ch5_val = to_float(p.get('ch5', 0))
-        
-        t_turn_out = get_turning_time(D1, D, t)
+
+        t_turn_out = get_turning_time(D1, D, S)
         t_turn_in = get_turning_time(d, D2, t)
         t_face = get_facing_time(D1, D2, delta_S)
         t_turn_step = get_turning_time(D, DM, ch5_val)
@@ -310,7 +318,7 @@ def calculate_lathe_time(item_type, p, m_info):
         total_min = t_turn_out + t_turn_in + t_face + t_turn_step + t_grooves + t_chams
 
     elif item_type == "circle":
-        t_turn_out = get_turning_time(D1, D, t)
+        t_turn_out = get_turning_time(D1, D, S)
         t_face = get_facing_time(D1, 0, delta_S)
         total_min = t_turn_out + t_face
 
@@ -320,7 +328,7 @@ def calculate_lathe_time(item_type, p, m_info):
         dm2_val = to_float(p.get('dm2', 0))
         K_val = to_float(p.get('K', 0))
 
-        t_turn_out = get_turning_time(D1, D, t)
+        t_turn_out = get_turning_time(D1, D, S)
         t_turn_in = get_turning_time(d, D2, t)
         t_face = get_facing_time(D1, D2, delta_S)
         
@@ -332,14 +340,14 @@ def calculate_lathe_time(item_type, p, m_info):
         total_min = t_turn_out + t_turn_in + t_face + t_turn_K + t_turn_E + t_chams
 
     elif item_type == "shell":
-        t_turn_out = get_turning_time(D1, D, t)
+        t_turn_out = get_turning_time(D1, D, S)
         t_turn_in = get_turning_time(d, D2, t)
         t_face = get_facing_time(D1, D2, delta_S)
         total_min = t_turn_out + t_face + t_turn_in
 
     elif item_type == "forming":
-        # 1. Основное наружное точение (от заготовки D1 до D на всю длину t)
-        t_turn_out = get_turning_time(D1, D, t)
+        # 1. Основное наружное точение (от заготовки D1 до D на всю длину S (толщина заготовки))
+        t_turn_out = get_turning_time(D1, D, S)
         
         # 2. Основное внутреннее растачивание (от отверстия заготовки D2 до d на всю длину t)
         t_turn_in = get_turning_time(d, D2, t)
@@ -359,10 +367,10 @@ def calculate_lathe_time(item_type, p, m_info):
         total_min = t_turn_out + t_turn_in + t_face + t_face_a + t_face_c + t_chams
 
     elif item_type == "swivel":
-        # 1. Наружное точение (от заготовки D1 до D на всю длину t)
-        t_turn_out = get_turning_time(D1, D, t)
-        
-        # 2. Внутреннее растачивание (от отверстия заготовки D2 до d на всю длину t)
+        # 1. Наружное точение (от заготовки D1 до D на всю длину S (толщина заготовки))
+        t_turn_out = get_turning_time(D1, D, S)
+
+        # 2. Внутреннее растачивание (от отверстия заготовки D2 до d на глубину t)
         t_turn_in = get_turning_time(d, D2, t)
         
         # 3. Торцевание (снимаем припуск по торцу delta_S от D1 до D2)
@@ -379,7 +387,7 @@ def calculate_lathe_time(item_type, p, m_info):
         Dw_val = to_float(p.get('Dw', 0))
         DM_val = to_float(p.get('DM', 0))
 
-        t_turn_out = get_turning_time(D1, D, t)
+        t_turn_out = get_turning_time(D1, D, S)
         t_turn_in = get_turning_time(d, D2, t - a)
         len_Dw = (S - b_val - (delta_S / 2))
         t_turn_Dw = get_turning_time(Dw_val, d, len_Dw)
@@ -388,11 +396,14 @@ def calculate_lathe_time(item_type, p, m_info):
         total_min = t_turn_out + t_turn_in + t_turn_Dw + t_face + t_face_groove
 
     elif item_type == "welding_tnf":
-        t_turn_out = get_turning_time(D1, D, t)
+        t_turn_out = get_turning_time(D1, D, S)
         t_turn_in = get_turning_time(d, D2, t)
         t_face = get_facing_time(D1, D2, delta_S)
         t_turn_step = get_turning_time(DM, d, a)
-        t_chams = get_chamfer_time([to_float(p.get(f'ch{i}', 0)) for i in range(1, 4)])
+        t_chams = get_chamfer_time(
+            [to_float(p.get(f'ch{i}', 0)) for i in range(1, 4)],
+            [to_float(p.get(f'angle_ch{i}', 45)) for i in range(1, 4)]
+        )
         total_min = t_turn_out + t_turn_in + t_face + t_turn_step + t_chams
 
 
@@ -400,15 +411,11 @@ def calculate_lathe_time(item_type, p, m_info):
         b_val = to_float(p.get('b', 0))
         Dw_val = to_float(p.get('Dw', 0))
 
-        # Наружное точение: длина = S (ширина пояска), скорость по среднему диаметру заготовки/детали
-        passes_ext = max(2, math.ceil(((D1 - D) / 2) / siem_long))
-        rpm_ext = get_rpm_for_diam((D1 + D) / 2)
-        speed_ext = feed_turn * rpm_ext
-        t_turn_out = (S * passes_ext) / speed_ext if speed_ext > 0 else 0
+        # Наружное точение: длина = S, скорость = speed_long (Excel B55)
+        t_turn_out = get_turning_time(D1, D, S)
 
-        # Внутреннее точение: та же скорость, что и наружное (как в Excel)
-        passes_int = max(2, math.ceil(((d - D2) / 2 / 2) / siem_transverse))
-        t_turn_in = (t * passes_int) / speed_ext if speed_ext > 0 else 0
+        # Внутреннее точение: та же скорость speed_long (Excel B104/B55)
+        t_turn_in = get_turning_time(d, D2, t)
 
         # Торцовка: полный диаметр D1→D2
         t_face = get_facing_time(D1, D2, delta_S)
@@ -425,11 +432,14 @@ def calculate_lathe_time(item_type, p, m_info):
         speed_prot2 = feed_face * rpm_prot2
         t_turn_Dw = ((Dw_val - d) / 2 * passes_prot2) / speed_prot2 if speed_prot2 > 0 else 0
 
-        # Фаски
+        # Фаски (угол в тех же единицах, что и в Excel: COS(angle) напрямую)
         ch1 = to_float(p.get('ch1', 0))
         ch2 = to_float(p.get('ch2', 0))
         ch3 = to_float(p.get('ch3', 0))
-        t_chams = get_chamfer_time([ch1, ch2, ch3])
+        ang1 = to_float(p.get('angle_ch1', 45))
+        ang2 = to_float(p.get('angle_ch2', 45))
+        ang3 = to_float(p.get('angle_ch3', 45))
+        t_chams = get_chamfer_time([ch1, ch2, ch3], [ang1, ang2, ang3])
 
         total_min = t_turn_out + t_turn_in + t_face + t_face_groove + t_turn_Dw + t_chams
 
@@ -602,7 +612,7 @@ def calculate_lathe_time(item_type, p, m_info):
         total_min = t_turn_assembly
 
 
-    final_time_sec = (total_min * 60) * get_AWC_coeff(D, S)
+    final_time_sec = (total_min * 60) * get_AWC_coeff(final_D1, S)
     
     log.info(f"Успешный расчет {item_type}. Чистое машинное время: {total_min:.2f} мин. "
              f"Итоговое время (с коэфф): {final_time_sec:.2f} сек.")
