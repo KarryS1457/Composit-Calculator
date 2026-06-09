@@ -228,10 +228,14 @@ def calculate_lathe_time(item_type, p, m_info):
         passes_t = max(2, math.ceil(radial_depth / siem_long))
         return (abs(length) * passes_t) / speed_t
 
-    def get_chamfer_time(chamfers):
-        """chamfers: список длин фасок в мм (уже с учётом угла, или как есть)"""
-        import math as _math
-        total = sum(ch / _math.cos(_math.radians(45)) for ch in chamfers if ch > 0)
+    def get_chamfer_time(chamfers, angles=None):
+        """chamfers: list of chamfer sizes (mm). angles: list of angles (same units as Excel cell,
+        treated as radians directly — matches Excel COS(angle) behaviour). Default angle=45."""
+        if angles is None:
+            angles = [45] * len(chamfers)
+        total = sum(
+            ch / math.cos(ang) for ch, ang in zip(chamfers, angles) if ch > 0
+        )
         return total / chamfer_speed if chamfer_speed > 0 else 0
 
 
@@ -392,7 +396,10 @@ def calculate_lathe_time(item_type, p, m_info):
         t_turn_in = get_turning_time(d, D2, t)
         t_face = get_facing_time(D1, D2, delta_S)
         t_turn_step = get_turning_time(DM, d, a)
-        t_chams = get_chamfer_time([to_float(p.get(f'ch{i}', 0)) for i in range(1, 4)])
+        t_chams = get_chamfer_time(
+            [to_float(p.get(f'ch{i}', 0)) for i in range(1, 4)],
+            [to_float(p.get(f'angle_ch{i}', 45)) for i in range(1, 4)]
+        )
         total_min = t_turn_out + t_turn_in + t_face + t_turn_step + t_chams
 
 
@@ -425,11 +432,14 @@ def calculate_lathe_time(item_type, p, m_info):
         speed_prot2 = feed_face * rpm_prot2
         t_turn_Dw = ((Dw_val - d) / 2 * passes_prot2) / speed_prot2 if speed_prot2 > 0 else 0
 
-        # Фаски
+        # Фаски (угол в тех же единицах, что и в Excel: COS(angle) напрямую)
         ch1 = to_float(p.get('ch1', 0))
         ch2 = to_float(p.get('ch2', 0))
         ch3 = to_float(p.get('ch3', 0))
-        t_chams = get_chamfer_time([ch1, ch2, ch3])
+        ang1 = to_float(p.get('angle_ch1', 45))
+        ang2 = to_float(p.get('angle_ch2', 45))
+        ang3 = to_float(p.get('angle_ch3', 45))
+        t_chams = get_chamfer_time([ch1, ch2, ch3], [ang1, ang2, ang3])
 
         total_min = t_turn_out + t_turn_in + t_face + t_face_groove + t_turn_Dw + t_chams
 
@@ -602,7 +612,7 @@ def calculate_lathe_time(item_type, p, m_info):
         total_min = t_turn_assembly
 
 
-    final_time_sec = (total_min * 60) * get_AWC_coeff(D, S)
+    final_time_sec = (total_min * 60) * get_AWC_coeff(final_D1, S)
     
     log.info(f"Успешный расчет {item_type}. Чистое машинное время: {total_min:.2f} мин. "
              f"Итоговое время (с коэфф): {final_time_sec:.2f} сек.")
