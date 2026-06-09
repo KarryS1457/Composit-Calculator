@@ -224,12 +224,13 @@ def calculate_lathe_time(item_type, p, m_info):
         passes_f = max(2, math.ceil((thickness / 2) / siem_transverse))
         return (path_length * passes_f) / speed_f
 
-    def get_turning_time(d_start, d_end, length):
-        """Продольное точение — использует единую speed_long (как Excel B55 для B103+B104)."""
+    def get_turning_time(d_start, d_end, length, boring=False):
+        """Продольное точение (boring=True → внутреннее растачивание, siem_transverse)."""
         if length <= 0 or abs(d_start - d_end) < 0.1: return 0
         if speed_long <= 0: return 0
         radial_depth = abs(d_start - d_end) / 2
-        passes_t = max(2, math.ceil(radial_depth / siem_long))
+        siem = siem_transverse if boring else siem_long
+        passes_t = max(2, math.ceil(radial_depth / siem))
         return (abs(length) * passes_t) / speed_long
 
     def get_chamfer_time(chamfers, angles=None):
@@ -306,7 +307,7 @@ def calculate_lathe_time(item_type, p, m_info):
         ch5_val = to_float(p.get('ch5', 0))
 
         t_turn_out = get_turning_time(D1, D, S)
-        t_turn_in = get_turning_time(d, D2, t)
+        t_turn_in = get_turning_time(d, D2, t, boring=True)
         t_face = get_facing_time(D1, D2, delta_S)
         t_turn_step = get_turning_time(D, DM, ch5_val)
         
@@ -329,11 +330,11 @@ def calculate_lathe_time(item_type, p, m_info):
         K_val = to_float(p.get('K', 0))
 
         t_turn_out = get_turning_time(D1, D, S)
-        t_turn_in = get_turning_time(d, D2, t)
+        t_turn_in = get_turning_time(d, D2, t, boring=True)
         t_face = get_facing_time(D1, D2, delta_S)
-        
-        t_turn_K = get_turning_time(dm2_val, d, K_val)
-        t_turn_E = get_turning_time(Dm1_val, dm2_val, E_val)
+
+        t_turn_K = get_turning_time(dm2_val, d, K_val, boring=True)
+        t_turn_E = get_turning_time(Dm1_val, dm2_val, E_val, boring=True)
         
         t_chams = get_chamfer_time([to_float(p.get(f'ch{i}', 0)) for i in range(1, 4)])
 
@@ -341,7 +342,7 @@ def calculate_lathe_time(item_type, p, m_info):
 
     elif item_type == "shell":
         t_turn_out = get_turning_time(D1, D, S)
-        t_turn_in = get_turning_time(d, D2, t)
+        t_turn_in = get_turning_time(d, D2, t, boring=True)
         t_face = get_facing_time(D1, D2, delta_S)
         total_min = t_turn_out + t_face + t_turn_in
 
@@ -350,7 +351,7 @@ def calculate_lathe_time(item_type, p, m_info):
         t_turn_out = get_turning_time(D1, D, S)
         
         # 2. Основное внутреннее растачивание (от отверстия заготовки D2 до d на всю длину t)
-        t_turn_in = get_turning_time(d, D2, t)
+        t_turn_in = get_turning_time(d, D2, t, boring=True)
         
         # 3. Торцевание общее (снимаем припуск по торцу delta_S от D1 до D2)
         t_face = get_facing_time(D1, D2, delta_S)
@@ -371,7 +372,7 @@ def calculate_lathe_time(item_type, p, m_info):
         t_turn_out = get_turning_time(D1, D, S)
 
         # 2. Внутреннее растачивание (от отверстия заготовки D2 до d на глубину t)
-        t_turn_in = get_turning_time(d, D2, t)
+        t_turn_in = get_turning_time(d, D2, t, boring=True)
         
         # 3. Торцевание (снимаем припуск по торцу delta_S от D1 до D2)
         t_face = get_facing_time(D1, D2, delta_S)
@@ -388,7 +389,7 @@ def calculate_lathe_time(item_type, p, m_info):
         DM_val = to_float(p.get('DM', 0))
 
         t_turn_out = get_turning_time(D1, D, S)
-        t_turn_in = get_turning_time(d, D2, t - a)
+        t_turn_in = get_turning_time(d, D2, t - a, boring=True)
         len_Dw = (S - b_val - (delta_S / 2))
         t_turn_Dw = get_turning_time(Dw_val, d, len_Dw)
         t_face = get_facing_time(D1, D2, delta_S)
@@ -397,7 +398,7 @@ def calculate_lathe_time(item_type, p, m_info):
 
     elif item_type == "welding_tnf":
         t_turn_out = get_turning_time(D1, D, S)
-        t_turn_in = get_turning_time(d, D2, t)
+        t_turn_in = get_turning_time(d, D2, t, boring=True)
         t_face = get_facing_time(D1, D2, delta_S)
         t_turn_step = get_turning_time(DM, d, a)
         t_chams = get_chamfer_time(
@@ -415,7 +416,7 @@ def calculate_lathe_time(item_type, p, m_info):
         t_turn_out = get_turning_time(D1, D, S)
 
         # Внутреннее точение: та же скорость speed_long (Excel B104/B55)
-        t_turn_in = get_turning_time(d, D2, t)
+        t_turn_in = get_turning_time(d, D2, t, boring=True)
 
         # Торцовка: полный диаметр D1→D2
         t_face = get_facing_time(D1, D2, delta_S)
@@ -446,7 +447,7 @@ def calculate_lathe_time(item_type, p, m_info):
     elif item_type == "bushing":
         n_qty = to_float(p.get('n', 1))
         t_out = get_turning_time(D1, D, t)
-        t_in = get_turning_time(d, D2, t)
+        t_in = get_turning_time(d, D2, t, boring=True)
         t_face_total = get_facing_time(D1, D2, delta_S)
 
         t_groove = 0
@@ -496,13 +497,13 @@ def calculate_lathe_time(item_type, p, m_info):
     elif item_type == "bearinghousing":
         t_turn_out = get_turning_time(D1, D, t)
         t_face = get_facing_time(D1, 0, delta_S)
-        t_turn_Dc = get_turning_time(Dc, 0, t)
-        t_turn_Dm = get_turning_time(Dm, Dc, t - c)
+        t_turn_Dc = get_turning_time(Dc, 0, t, boring=True)
+        t_turn_Dm = get_turning_time(Dm, Dc, t - c, boring=True)
         total_min = t_turn_out + t_face + t_turn_Dc + t_turn_Dm
 
     elif item_type == "rotspher":
         t_out = get_turning_time(D1, D, t)
-        t_in = get_turning_time(d, D2, t)
+        t_in = get_turning_time(d, D2, t, boring=True)
         t_face = get_facing_time(D1, D2, delta_S)
         
         rs = to_float(p.get('RS', 0))
@@ -567,10 +568,10 @@ def calculate_lathe_time(item_type, p, m_info):
         t_face = get_facing_time(D1, 0, delta_S)
         
         # 2. Сверление и черновое растачивание (от сплошного металла 0 до чернового D2)
-        t_drill_rough = get_turning_time(D2, 0, t_len)
-        
+        t_drill_rough = get_turning_time(D2, 0, t_len, boring=True)
+
         # 3. Расточка внутренней ступени (от чернового D2 до Dm на заданную глубину)
-        t_bore_left = get_turning_time(Dm, D2, len_bore)
+        t_bore_left = get_turning_time(Dm, D2, len_bore, boring=True)
         
         # 4. Прорезание внутренней канавки
         t_groove = get_grooving_time(Dm, D2, m_val) 
