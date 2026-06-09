@@ -180,30 +180,19 @@ def calculate_lathe_time(item_type, p, m_info):
 
     log.debug(f"Старт расчета {item_type}. Параметры GUI: {p}, Станок: {m_info.get('machine')}")
 
-    # 2. КРИТИЧЕСКОЕ ОБНОВЛЕНИЕ: Переопределяем станок на основе РЕАЛЬНОГО диаметра
+    # Определяем станок по готовому диаметру детали D (как в эталонном Excel)
     current_machine = m_info.get('machine')
     for name, (low, high) in data.RANGES_DATA.items():
-        if low <= final_D1 <= high:
-            # Если программа переключила станок — обязательно пишем это в лог (уровень WARNING или INFO)
+        if low <= D <= high:
             if current_machine != name:
                 log.warning(f"АВТОКОРРЕКЦИЯ: Станок изменен с {current_machine} на {name} "
-                            f"(диаметр заготовки {final_D1} мм не влезает в {current_machine})")
+                            f"(диаметр детали {D} мм)")
             current_machine = name
             break
-
-    current_machine = m_info.get('machine')
-    for name, (low, high) in data.RANGES_DATA.items():
-        if low <= final_D1 <= high:
-            if current_machine != name:
-                log.warning(f"АВТОКОРРЕКЦИЯ: Станок изменен с {current_machine} на {name} "
-                            f"(диаметр заготовки {final_D1} мм)")
-            current_machine = name
-            break
-
 
     # Обновляем технологические параметры под актуальный станок
-    m_params = data.FEEDRATE_DATA.get(current_machine, [3, 0.15, 0.25])
-    depth_limit, feed_turn, feed_face = m_params
+    m_params = data.FEEDRATE_DATA.get(current_machine, [3, 3, 0.15, 0.25, 1500])
+    siem_long, siem_transverse, feed_turn, feed_face, chamfer_speed = m_params
 
     # Локальная функция точного поиска оборотов шпинделя
     def get_rpm_for_diam(diameter):
@@ -222,14 +211,12 @@ def calculate_lathe_time(item_type, p, m_info):
 
     def get_facing_time(d_start, d_end, thickness):
         if thickness <= 0 or abs(d_start - d_end) < 0.01: return 0
-        path_length = abs(d_start - d_end) / 2
+        path_length = abs(d_start - d_end)  # полный диаметр (как в Excel)
         avg_diameter = (d_start + d_end) / 2
         rpm_f = get_rpm_for_diam(avg_diameter)
         speed_f = feed_face * rpm_f
         if speed_f <= 0: return 0
-        
-        calculated_passes = math.ceil(thickness / depth_limit)
-        passes_f = max(2, calculated_passes)
+        passes_f = max(2, math.ceil((thickness / 2) / siem_transverse))
         return (path_length * passes_f) / speed_f
 
     def get_turning_time(d_start, d_end, length):
@@ -237,11 +224,15 @@ def calculate_lathe_time(item_type, p, m_info):
         rpm_t = get_rpm_for_diam(max(d_start, d_end))
         speed_t = feed_turn * rpm_t
         if speed_t <= 0: return 0
-        
         radial_depth = abs(d_start - d_end) / 2
-        calculated_passes = math.ceil(radial_depth / depth_limit)
-        passes_t = max(2, calculated_passes)
+        passes_t = max(2, math.ceil(radial_depth / siem_long))
         return (abs(length) * passes_t) / speed_t
+
+    def get_chamfer_time(chamfers):
+        """chamfers: список длин фасок в мм (уже с учётом угла, или как есть)"""
+        import math as _math
+        total = sum(ch / _math.cos(_math.radians(45)) for ch in chamfers if ch > 0)
+        return total / chamfer_speed if chamfer_speed > 0 else 0
 
 
     # th_diameter ну же ли???
@@ -314,10 +305,8 @@ def calculate_lathe_time(item_type, p, m_info):
         rpm_k = get_rpm_for_diam(to_float(p.get('Dk', 0)))
         t_grooves = (to_float(p.get('P', 0)) * to_float(p.get('n', 0))) / (0.1 * rpm_k) if rpm_k > 0 else 0
         
-        ch_total = to_float(p.get('ch1', 0)) + to_float(p.get('ch2', 0)) + to_float(p.get('ch3', 0)) + to_float(p.get('ch4', 0))
-        rpm_ch = get_rpm_for_diam(D)
-        t_chams = (ch_total / (feed_turn * rpm_ch)) if (ch_total > 0 and rpm_ch > 0) else 0
-        
+        t_chams = get_chamfer_time([to_float(p.get(f'ch{i}', 0)) for i in range(1, 5)])
+
         total_min = t_turn_out + t_turn_in + t_face + t_turn_step + t_grooves + t_chams
 
     elif item_type == "circle":
@@ -338,9 +327,7 @@ def calculate_lathe_time(item_type, p, m_info):
         t_turn_K = get_turning_time(dm2_val, d, K_val)
         t_turn_E = get_turning_time(Dm1_val, dm2_val, E_val)
         
-        ch_total = to_float(p.get('ch1', 0)) + to_float(p.get('ch2', 0)) + to_float(p.get('ch3', 0))
-        rpm_ch = get_rpm_for_diam(D)
-        t_chams = (ch_total / (feed_turn * rpm_ch)) if (ch_total > 0 and rpm_ch > 0) else 0
+        t_chams = get_chamfer_time([to_float(p.get(f'ch{i}', 0)) for i in range(1, 4)])
 
         total_min = t_turn_out + t_turn_in + t_face + t_turn_K + t_turn_E + t_chams
 
@@ -367,12 +354,7 @@ def calculate_lathe_time(item_type, p, m_info):
         t_face_c = get_facing_time(d, DW, c)
         
         # 6. ДОБАВЛЕНО: Снятие всех 4-х фасок по чертежу
-        ch_total = (to_float(p.get('ch1', 0)) + to_float(p.get('ch2', 0)) + 
-                    to_float(p.get('ch3', 0)) + to_float(p.get('ch4', 0)))
-        t_chams = 0
-        if ch_total > 0:
-            rpm_ch = get_rpm_for_diam(D) # Берем средние обороты по наружному диаметру
-            t_chams = (ch_total / (feed_turn * rpm_ch)) if rpm_ch > 0 else 0
+        t_chams = get_chamfer_time([to_float(p.get(f'ch{i}', 0)) for i in range(1, 5)])
         
         total_min = t_turn_out + t_turn_in + t_face + t_face_a + t_face_c + t_chams
 
@@ -387,9 +369,7 @@ def calculate_lathe_time(item_type, p, m_info):
         t_face = get_facing_time(D1, D2, delta_S)
         
         # 4. ДОБАВЛЕНО: Снятие фасок (ch1 и ch2 по чертежу)
-        ch_total = to_float(p.get('ch1', 0)) + to_float(p.get('ch2', 0))
-        rpm_ch = get_rpm_for_diam(D)
-        t_chams = (ch_total / (feed_turn * rpm_ch)) if (ch_total > 0 and rpm_ch > 0) else 0
+        t_chams = get_chamfer_time([to_float(p.get('ch1', 0)), to_float(p.get('ch2', 0))])
         
         total_min = t_turn_out + t_turn_in + t_face + t_chams
 
@@ -412,9 +392,7 @@ def calculate_lathe_time(item_type, p, m_info):
         t_turn_in = get_turning_time(d, D2, t)
         t_face = get_facing_time(D1, D2, delta_S)
         t_turn_step = get_turning_time(DM, d, a)
-        ch_total = to_float(p.get('ch1', 0)) + to_float(p.get('ch2', 0)) + to_float(p.get('ch3', 0))
-        rpm_ch = get_rpm_for_diam(D)
-        t_chams = (ch_total / (feed_turn * rpm_ch)) if (ch_total > 0 and rpm_ch > 0) else 0
+        t_chams = get_chamfer_time([to_float(p.get(f'ch{i}', 0)) for i in range(1, 4)])
         total_min = t_turn_out + t_turn_in + t_face + t_turn_step + t_chams
 
 
@@ -422,12 +400,38 @@ def calculate_lathe_time(item_type, p, m_info):
         b_val = to_float(p.get('b', 0))
         Dw_val = to_float(p.get('Dw', 0))
 
-        t_turn_out = get_turning_time(D1, D, t)
-        t_turn_in = get_turning_time(d, D2, b_val - a)
-        t_turn_Dw = get_turning_time(Dw_val, d, t - b_val)
+        # Наружное точение: длина = S (ширина пояска), скорость по среднему диаметру заготовки/детали
+        passes_ext = max(2, math.ceil(((D1 - D) / 2) / siem_long))
+        rpm_ext = get_rpm_for_diam((D1 + D) / 2)
+        speed_ext = feed_turn * rpm_ext
+        t_turn_out = (S * passes_ext) / speed_ext if speed_ext > 0 else 0
+
+        # Внутреннее точение: та же скорость, что и наружное (как в Excel)
+        passes_int = max(2, math.ceil(((d - D2) / 2 / 2) / siem_transverse))
+        t_turn_in = (t * passes_int) / speed_ext if speed_ext > 0 else 0
+
+        # Торцовка: полный диаметр D1→D2
         t_face = get_facing_time(D1, D2, delta_S)
-        t_face_groove = get_facing_time(DM, D2, a)
-        total_min = t_turn_out + t_turn_in + t_turn_Dw + t_face + t_face_groove
+
+        # 1-й выступ DM (глубина a): путь = (DM-d)/2, скорость по среднему (DM+d)/2
+        passes_prot1 = max(2, math.ceil((a / 2) / siem_transverse))
+        rpm_prot1 = get_rpm_for_diam((DM + d) / 2)
+        speed_prot1 = feed_face * rpm_prot1
+        t_face_groove = ((DM - d) / 2 * passes_prot1) / speed_prot1 if speed_prot1 > 0 else 0
+
+        # 2-й выступ Dw (глубина t-b): путь = (Dw-d)/2, скорость по среднему (Dw+d)/2
+        passes_prot2 = max(2, math.ceil((t - b_val) / siem_transverse))
+        rpm_prot2 = get_rpm_for_diam((Dw_val + d) / 2)
+        speed_prot2 = feed_face * rpm_prot2
+        t_turn_Dw = ((Dw_val - d) / 2 * passes_prot2) / speed_prot2 if speed_prot2 > 0 else 0
+
+        # Фаски
+        ch1 = to_float(p.get('ch1', 0))
+        ch2 = to_float(p.get('ch2', 0))
+        ch3 = to_float(p.get('ch3', 0))
+        t_chams = get_chamfer_time([ch1, ch2, ch3])
+
+        total_min = t_turn_out + t_turn_in + t_face + t_face_groove + t_turn_Dw + t_chams
 
     elif item_type == "bushing":
         n_qty = to_float(p.get('n', 1))
@@ -449,11 +453,7 @@ def calculate_lathe_time(item_type, p, m_info):
                 th_depth_cut=0.2
             )
 
-        ch_total = to_float(p.get('ch1', 0)) + to_float(p.get('ch2', 0))
-        t_chams = 0
-        if ch_total > 0:
-            rpm_ch = get_rpm_for_diam(D)
-            t_chams = (ch_total / (feed_turn * rpm_ch)) if rpm_ch > 0 else 0
+        t_chams = get_chamfer_time([to_float(p.get('ch1', 0)), to_float(p.get('ch2', 0))])
 
         t_one_piece = t_out + t_in + t_groove + t_thread_min + t_chams
         total_min = (t_one_piece * n_qty) + t_face_total
@@ -501,20 +501,19 @@ def calculate_lathe_time(item_type, p, m_info):
         
         if rs > 0 and ra > 0:
             arc_path = rs * (ra * math.pi / 180)
-            passes_sphere = math.ceil(as_depth / depth_limit) if as_depth > 0 else 1
+            passes_sphere = math.ceil(as_depth / siem_long) if as_depth > 0 else 1
             rpm_s = get_rpm_for_diam(D)
             t_sphere = (arc_path * passes_sphere) / (feed_turn * rpm_s) if rpm_s > 0 else 0
         else:
             t_sphere = 0
 
         if DM > 0 and DM < D:
-            t_protochka = get_facing_time(D, DM, depth_limit) 
+            t_protochka = get_facing_time(D, DM, siem_long)
         else:
             t_protochka = 0
 
-        total_ch_len = sum([to_float(p.get(f'ch{i}', 0)) for i in range(1, 5)])
-        rpm_current_d = get_rpm_for_diam(D)
-        t_chams = (total_ch_len / (feed_turn * rpm_current_d)) if rpm_current_d > 0 else 0
+        total_ch_len = [to_float(p.get(f'ch{i}', 0)) for i in range(1, 5)]
+        t_chams = get_chamfer_time(total_ch_len)
 
         total_min = t_out + t_in + t_face + t_sphere + t_protochka + t_chams
 
@@ -523,10 +522,8 @@ def calculate_lathe_time(item_type, p, m_info):
         t_out_main = get_turning_time(D1, D, t)
         t_out_step = get_turning_time(D, Dc, a)
         
-        ch_total = to_float(p.get('ch1', 0)) + to_float(p.get('ch2', 0))
-        rpm_ch = get_rpm_for_diam(D)
-        t_chams = (ch_total / (feed_turn * rpm_ch)) if rpm_ch > 0 else 0
-        
+        t_chams = get_chamfer_time([to_float(p.get('ch1', 0)), to_float(p.get('ch2', 0))])
+
         t_cyclic_one = t_out_main + t_out_step + t_chams
         t_face_total = get_facing_time(D1, 0, delta_S)
         
@@ -576,9 +573,7 @@ def calculate_lathe_time(item_type, p, m_info):
         t_step_right = get_turning_time(Dt, Dc2, len_c2)
         
         # 7. Суммарное время на все фаски
-        ch_total = to_float(p.get('ch1', 0)) + to_float(p.get('ch2', 0)) + to_float(p.get('ch3', 0))
-        rpm_ch = get_rpm_for_diam(Dt)
-        t_chams = (ch_total / (feed_turn * rpm_ch)) if (ch_total > 0 and rpm_ch > 0) else 0
+        t_chams = get_chamfer_time([to_float(p.get(f'ch{i}', 0)) for i in range(1, 4)])
 
         # Итоговое время 1-й операции
         total_min = t_face + t_drill_rough + t_bore_left + t_groove + t_turn_outer_max + t_step_left + t_step_right + t_chams
