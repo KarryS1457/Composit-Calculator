@@ -597,16 +597,20 @@ def calculate_lathe_time(item_type, p, m_info=None, force_machine=None):
         total_min = t_turn_out + t_turn_in + t_face + t_chams
 
     elif item_type == "pin":
-        n_qty = to_float(p.get('n', 1))
+        # Штифт по Excel: нар. точение заготовки по S (B111), внешняя проточка
+        # по габариту t (B106/B122), проточка D→Dc на длину a (B107/B123),
+        # торцовка (B115), фаски ch1/ch2 с углами (B116)
+        t_out_blank = get_turning_time(D1, D, S)
         t_out_main = get_turning_time(D1, D, t)
         t_out_step = get_turning_time(D, Dc, a)
-        
-        t_chams = get_chamfer_time([to_float(p.get('ch1', 0)), to_float(p.get('ch2', 0))])
+        t_face = get_facing_time(D1, 0, delta_S)
 
-        t_cyclic_one = t_out_main + t_out_step + t_chams
-        t_face_total = get_facing_time(D1, 0, delta_S)
-        
-        total_min = (t_cyclic_one * n_qty) + t_face_total
+        t_chams = get_chamfer_time(
+            [to_float(p.get('ch1', 0)), to_float(p.get('ch2', 0))],
+            [to_float(p.get('angle_ch1', 0)), to_float(p.get('angle_ch2', 0))]
+        )
+
+        total_min = t_out_blank + t_out_main + t_out_step + t_face + t_chams
 
 
     elif item_type == "hub_composite_solid":
