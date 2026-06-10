@@ -30,13 +30,16 @@ class bushing(tk.Frame):
         self.ent_D = self.add_entry(left_frame, "Внешний диаметр D (мм):")
         self.ent_t = self.add_entry(left_frame, "Габарит детали t (мм):")
         self.ent_M = self.add_entry(left_frame, "Диаметр резьбы M (мм):")
-        self.ent_H = self.add_entry(left_frame, "Шаг резьбы H (мм):") 
+        self.ent_H = self.add_entry(left_frame, "Шаг резьбы H (мм):")
         self.ent_L = self.add_entry(left_frame, "Длина резьбы L (мм):")
-        self.ent_Dw = self.add_entry(left_frame, "Диаметр проточки Dw (мм):")
-        self.ent_c = self.add_entry(left_frame, "Длина проточки c (мм):")
-        self.ent_a = self.add_entry(left_frame, "Ширина канавы a (мм):")
-        self.ent_Dk = self.add_entry(left_frame, "Диаметр дна канавы Dm (мм):")
-        self.ent_n = self.add_entry(left_frame, "Колличество втулок")
+        self.var_thpos = tk.IntVar(value=1)
+        tk.Checkbutton(left_frame, text="Резьба внешняя (иначе внутренняя)",
+                       variable=self.var_thpos).pack(anchor="w", pady=(0, 5))
+        self.ent_Dw = self.add_entry(left_frame, "Диаметр 2-ой проточки Dw (мм):")
+        self.ent_Y = self.add_entry(left_frame, "Начало канавы Y (мм):")
+        self.ent_X = self.add_entry(left_frame, "Ширина канавы Х (мм):")
+        self.ent_a = self.add_entry(left_frame, "Глубина проточки a (мм):")
+        self.ent_Dk = self.add_entry(left_frame, "Диаметр дна канавы Dk (мм):")
 
         self.add_label(left_frame, "--- ФАСКИ ---", bold=True)
         self.ent_ch1 = self.add_entry(left_frame, "Размер фаски ch1 (мм):")
@@ -49,7 +52,7 @@ class bushing(tk.Frame):
         self.add_label(left_frame, "--- ПАРАМЕТРЫ ЗАГОТОВКИ ---", bold=True)
 
         self.ent_D1 = self.add_entry(left_frame, "Внешний диаметр заготовки D1 (мм):")
-        self.ent_d = self.add_entry(left_frame, "Внутренний диаметр заготовки d (мм):")      
+        self.ent_D2 = self.add_entry(left_frame, "Внутренний диаметр заготовки D2 (мм):")
         self.ent_S = self.add_entry(left_frame, "Толщина листа S (мм):")
 
         # Правый блок (Эскиз)
@@ -179,11 +182,12 @@ class bushing(tk.Frame):
                 "M": float(self.ent_M.get() or 0),
                 "H": float(self.ent_H.get() or 0),
                 "L": float(self.ent_L.get() or 0),
+                "th_pos": self.var_thpos.get(),
                 "Dw": float(self.ent_Dw.get() or 0),
-                "c": float(self.ent_c.get() or 0),
+                "Y": float(self.ent_Y.get() or 0),
+                "X": float(self.ent_X.get() or 0),
                 "a": float(self.ent_a.get() or 0),
-                "Dm": float(self.ent_Dm.get() or 0),
-                "n": float(self.ent_n.get() or 0),
+                "Dk": float(self.ent_Dk.get() or 0),
                 "ch1": float(self.ent_ch1.get() or 0),
                 "angle_ch1": float(self.ent_angle_ch1.get() or 0),
                 "ch2": float(self.ent_ch2.get() or 0),
@@ -191,8 +195,9 @@ class bushing(tk.Frame):
                 "ch3": float(self.ent_ch3.get() or 0),
                 "angle_ch3": float(self.ent_angle_ch3.get() or 0),
                 "D1": float(self.ent_D1.get() or 0),
-                "d": float(self.ent_d.get() or 0),
-                "S": float(self.ent_S.get() or 0)
+                "D2": float(self.ent_D2.get() or 0),
+                "S": float(self.ent_S.get() or 0),
+                "d": 0
             }
             self.controller.handle_lathe_calculation("bushing", payload)
         except ValueError:

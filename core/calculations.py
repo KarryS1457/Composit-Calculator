@@ -85,6 +85,14 @@ def calculate_weld_logic(gost, s, l_mm, m, k_lp, k_pos, k_posture, weld_data, ch
         "s": s
     }
 
+# Типы изделий из эталонной таблицы Excel (лист "Типы изделий")
+TABLE_TYPES = frozenset({
+    "swivel", "circle", "shell", "weldring",
+    "welding_flange", "weldflange", "welding_tnf", "weldingtnf",
+    "compensator", "forming", "adapter", "rotspher",
+    "threaded_bushing", "bushing", "pin",
+})
+
 def calculate_lathe_time(item_type, p, m_info=None, force_machine=None):
     # Вспомогательная функция для безопасного извлечения чисел
     def to_float(val):
@@ -287,222 +295,167 @@ def calculate_lathe_time(item_type, p, m_info=None, force_machine=None):
     thread_min = 0.0  # резьба считается отдельно (Excel E3), без коэфф. всп. работ
 
     # --- ЛОГИКА ПО ТИПАМ ---
-    if item_type == "adapter":
-        ch5_val = to_float(p.get('ch5', 0))
-
-        t_turn_out = get_turning_time(D1, D, S)
-        t_turn_in = get_turning_time(d, D2, t, boring=True)
-        t_face = get_facing_time(D1, D2, delta_S)
-
-        # Внешняя проточка D→DM: путь (D-DM)/2, проходы по глубине ch5 (Excel B112, F11/F12/B87)
-        t_turn_step = get_recess_time(D, DM, ch5_val, halve_depth=False)
-
-        # Торцевые канавы: (P*n) / (подача поперечная * обороты по Dk) (Excel B113/F17)
-        rpm_k = get_rpm_for_diam(to_float(p.get('Dk', 0)))
-        speed_k = feed_face * rpm_k
-        t_grooves = (to_float(p.get('P', 0)) * to_float(p.get('n', 0))) / speed_k if speed_k > 0 else 0
-
-        # Фаски ch1-ch5 с углами (Excel B117 суммирует все фаски, включая ch5)
-        t_chams = get_chamfer_time(
-            [to_float(p.get(f'ch{i}', 0)) for i in range(1, 6)],
-            [to_float(p.get(f'angle_ch{i}', 0)) for i in range(1, 6)]
-        )
-
-        total_min = t_turn_out + t_turn_in + t_face + t_turn_step + t_grooves + t_chams
-
-    elif item_type == "circle":
-        t_turn_out = get_turning_time(D1, D, S)
-        t_face = get_facing_time(D1, 0, delta_S)
-        t_chams = get_chamfer_time(
-            [to_float(p.get(f'ch{i}', 0)) for i in range(1, 3)],
-            [to_float(p.get(f'angle_ch{i}', 0)) for i in range(1, 3)]
-        )
-        total_min = t_turn_out + t_face + t_chams
-
-    elif item_type == "compensator":
+    # Изделия эталонной таблицы считаются единым "движком", который построчно
+    # повторяет лист "Получение данных для расчета" (строки B111-B125).
+    # ВАЖНО: Excel суммирует ВСЕ строки для ЛЮБОГО типа изделия; строка дает 0,
+    # только если ее параметров нет в списке параметров типа (IFERROR -> 0).
+    if item_type in TABLE_TYPES:
         E_val = to_float(p.get('E', 0))
+        Dw_val = to_float(p.get('Dw', p.get('DW', 0)))
+        b_val = to_float(p.get('b', 0))
+        c_val = to_float(p.get('c', 0))
         Dm1_val = to_float(p.get('Dm1', 0))
         dm2_val = to_float(p.get('dm2', 0))
         K_val = to_float(p.get('K', 0))
-
-        t_turn_out = get_turning_time(D1, D, S)
-        t_turn_in = get_turning_time(d, D2, t, boring=True)
-        t_face = get_facing_time(D1, D2, delta_S)
-
-        # Расточка с канавой: путь (DM1-d)/2, проходы по глубине E (Excel B109/B62/B83/B63)
-        t_recess = get_recess_time(Dm1_val, d, E_val)
-
-        # Канава: глубина (K-E), проходы по ширине (DM1-dM2)/2 / ширина резца + 1,
-        # скорость = подача на канаву × обороты по среднему (D1+D)/2 (Excel B110/B98/B86/B67)
-        t_groove = 0
-        if K_val > E_val and Dm1_val > dm2_val:
-            groove_w = data.GROOVE_INSERT_WIDTH.get(current_machine, 4)
-            passes_groove = math.ceil(((Dm1_val - dm2_val) / 2) / groove_w) + 1
-            speed_g = data.GROOVE_FEED * get_rpm_for_diam((D1 + D) / 2)
-            if speed_g > 0:
-                t_groove = ((K_val - E_val) * passes_groove) / speed_g
-
-        t_chams = get_chamfer_time(
-            [to_float(p.get(f'ch{i}', 0)) for i in range(1, 4)],
-            [to_float(p.get(f'angle_ch{i}', 0)) for i in range(1, 4)]
-        )
-
-        total_min = t_turn_out + t_turn_in + t_face + t_recess + t_groove + t_chams
-
-    elif item_type == "shell":
-        t_turn_out = get_turning_time(D1, D, S)
-        t_turn_in = get_turning_time(d, D2, t, boring=True)
-        t_face = get_facing_time(D1, D2, delta_S)
-        t_chams = get_chamfer_time(
-            [to_float(p.get(f'ch{i}', 0)) for i in range(1, 5)],
-            [to_float(p.get(f'angle_ch{i}', 0)) for i in range(1, 5)]
-        )
-        total_min = t_turn_out + t_face + t_turn_in + t_chams
-
-    elif item_type == "forming":
-        # 1. Основное наружное точение (от заготовки D1 до D на всю длину S (толщина заготовки))
-        t_turn_out = get_turning_time(D1, D, S)
-        
-        # 2. Основное внутреннее растачивание (от отверстия заготовки D2 до d на всю длину t)
-        t_turn_in = get_turning_time(d, D2, t, boring=True)
-        
-        # 3. Торцевание общее (снимаем припуск по торцу delta_S от D1 до D2)
-        t_face = get_facing_time(D1, D2, delta_S)
-        
-        # 4. 1-я проточка: путь (DM-d)/2, проходы по глубине a (Excel B105/B5/B83)
-        t_face_a = get_recess_time(DM, d, a)
-
-        # 5. 2-я проточка: путь (Dw-d)/2, проходы по глубине c (Excel B106/B27/B85 "Формующие")
-        t_face_c = get_recess_time(DW, d, c)
-
-        # 6. Снятие всех 4-х фасок по чертежу
-        t_chams = get_chamfer_time(
-            [to_float(p.get(f'ch{i}', 0)) for i in range(1, 5)],
-            [to_float(p.get(f'angle_ch{i}', 0)) for i in range(1, 5)]
-        )
-
-        total_min = t_turn_out + t_turn_in + t_face + t_face_a + t_face_c + t_chams
-
-    elif item_type == "swivel":
-        # 1. Наружное точение (от заготовки D1 до D на всю длину S (толщина заготовки))
-        t_turn_out = get_turning_time(D1, D, S)
-
-        # 2. Внутреннее растачивание (от отверстия заготовки D2 до d на глубину t)
-        t_turn_in = get_turning_time(d, D2, t, boring=True)
-        
-        # 3. Торцевание (снимаем припуск по торцу delta_S от D1 до D2)
-        t_face = get_facing_time(D1, D2, delta_S)
-        
-        # 4. Снятие фасок (ch1 и ch2 по чертежу)
-        t_chams = get_chamfer_time(
-            [to_float(p.get('ch1', 0)), to_float(p.get('ch2', 0))],
-            [to_float(p.get('angle_ch1', 0)), to_float(p.get('angle_ch2', 0))]
-        )
-        
-        total_min = t_turn_out + t_turn_in + t_face + t_chams
-
-
-    elif item_type == "weldring":
-        # В Excel параметры и формулы кольца приварного идентичны фланцу приварному
-        b_val = to_float(p.get('b', 0))
-        Dw_val = to_float(p.get('Dw', 0))
-        DM_val = to_float(p.get('DM', 0))
-
-        t_turn_out = get_turning_time(D1, D, S)
-        t_turn_in = get_turning_time(d, D2, t, boring=True)
-        t_face = get_facing_time(D1, D2, delta_S)
-
-        # 1-я проточка DM (глубина a): путь (DM-d)/2 (Excel B105)
-        t_face_groove = get_recess_time(DM_val, d, a)
-
-        # 2-я проточка Dw (глубина t-b): путь (Dw-d)/2 (Excel B106, проходы без деления на 2)
-        t_turn_Dw = get_recess_time(Dw_val, d, t - b_val, halve_depth=False)
-
-        t_chams = get_chamfer_time(
-            [to_float(p.get(f'ch{i}', 0)) for i in range(1, 4)],
-            [to_float(p.get(f'angle_ch{i}', 0)) for i in range(1, 4)]
-        )
-
-        total_min = t_turn_out + t_turn_in + t_turn_Dw + t_face + t_face_groove + t_chams
-
-    elif item_type == "welding_tnf":
-        t_turn_out = get_turning_time(D1, D, S)
-        t_turn_in = get_turning_time(d, D2, t, boring=True)
-        t_face = get_facing_time(D1, D2, delta_S)
-        # Проточка DM (глубина a): путь (DM-d)/2, поперечная подача (Excel B105)
-        t_turn_step = get_recess_time(DM, d, a)
-        t_chams = get_chamfer_time(
-            [to_float(p.get(f'ch{i}', 0)) for i in range(1, 4)],
-            [to_float(p.get(f'angle_ch{i}', 0)) for i in range(1, 4)]
-        )
-        total_min = t_turn_out + t_turn_in + t_face + t_turn_step + t_chams
-
-
-    elif item_type == "welding_flange":
-        b_val = to_float(p.get('b', 0))
-        Dw_val = to_float(p.get('Dw', 0))
-
-        # Наружное точение: длина = S, скорость = speed_long (Excel B55)
-        t_turn_out = get_turning_time(D1, D, S)
-
-        # Внутреннее точение: та же скорость speed_long (Excel B104/B55)
-        t_turn_in = get_turning_time(d, D2, t, boring=True)
-
-        # Торцовка: полный диаметр D1→D2
-        t_face = get_facing_time(D1, D2, delta_S)
-
-        # 1-й выступ DM (глубина a): путь = (DM-d)/2, скорость по среднему (DM+d)/2
-        t_face_groove = get_recess_time(DM, d, a)
-
-        # 2-й выступ Dw (глубина t-b): путь = (Dw-d)/2, скорость по среднему (Dw+d)/2
-        t_turn_Dw = get_recess_time(Dw_val, d, t - b_val, halve_depth=False)
-
-        # Фаски (угол в тех же единицах, что и в Excel: COS(angle) напрямую)
-        ch1 = to_float(p.get('ch1', 0))
-        ch2 = to_float(p.get('ch2', 0))
-        ch3 = to_float(p.get('ch3', 0))
-        ang1 = to_float(p.get('angle_ch1', 0))
-        ang2 = to_float(p.get('angle_ch2', 0))
-        ang3 = to_float(p.get('angle_ch3', 0))
-        t_chams = get_chamfer_time([ch1, ch2, ch3], [ang1, ang2, ang3])
-
-        total_min = t_turn_out + t_turn_in + t_face + t_face_groove + t_turn_Dw + t_chams
-
-    elif item_type == "bushing":
-        # Втулка по Excel: наружное точение (длина S), торцовка, внешняя канава, фаски.
-        # Резьба наружная — отдельной строкой (Excel E3).
-        n_qty = max(1.0, to_float(p.get('n', 1)))
-        t_out = get_turning_time(D1, D, S)
-        t_face_total = get_facing_time(D1, D2, delta_S)
-
-        # Внешняя канава Dw→Dk: путь (Dw-Dk)/2, проходы по ширине канавы /
-        # сием продольный (Excel B125/B89/B71), подача поперечная по avg(D1, D)
-        Dw_val = to_float(p.get('Dw', 0))
         Dk_val = to_float(p.get('Dk', 0))
-        width_x = to_float(p.get('a', 0))  # ширина канавы (Х)
-        t_groove = 0
-        if Dw_val > Dk_val and width_x > 0:
-            passes_g = math.ceil(width_x / siem_long)
-            if passes_g <= 1: passes_g = 2
-            speed_g = feed_face * get_rpm_for_diam((D1 + D) / 2)
-            if speed_g > 0:
-                t_groove = ((Dw_val - Dk_val) / 2 * passes_g) / speed_g
+        P_val = to_float(p.get('P', 0))
+        n_val = to_float(p.get('n', 0))
+        X_val = to_float(p.get('X', 0))
 
-        t_chams = get_chamfer_time(
-            [to_float(p.get(f'ch{i}', 0)) for i in range(1, 4)],
-            [to_float(p.get(f'angle_ch{i}', 0)) for i in range(1, 4)]
+        def passes_if(x, siem):
+            """Excel: IF(ROUNDUP(x/siem)=1, ROUNDUP+1, ROUNDUP)."""
+            if x <= 0 or siem <= 0: return 0
+            r = math.ceil(x / siem)
+            return 2 if r == 1 else r
+
+        def feed_speed(diameter):
+            """Поперечная подача (мм/мин) по ближайшему среднему диаметру."""
+            return feed_face * get_rpm_for_diam(diameter)
+
+        def rpm_in_col(col, diameter):
+            """Обороты из заданной колонки таблицы оборотов (ближайший диаметр)."""
+            diams, rpms = data.TURNING_DATA.get(col, ([], []))
+            if not diams: return 0
+            i = min(range(len(diams)), key=lambda k: abs(diams[k] - diameter))
+            return rpms[i]
+
+        def rpm_step_down(col, diameter):
+            """Excel B63/B67: MATCH по столбцу данных + HLOOKUP по таблице с
+            заголовком дают обороты на одну ступень диаметра НИЖЕ ближайшей.
+            На первой ступени (50 мм) формула попадает в заголовок -> ошибка -> 0."""
+            diams, rpms = data.TURNING_DATA.get(col, ([], []))
+            if not diams: return 0
+            i = min(range(len(diams)), key=lambda k: abs(diams[k] - diameter))
+            return rpms[i - 1] if i > 0 else 0
+
+        B80 = passes_if((D1 - D) / 2, siem_long)
+        B81 = passes_if((S - t) / 2, siem_transverse)
+        # B4=(d-D2)/2, а формула B82 берет еще B4/2 — итого четверть разницы
+        B82 = passes_if((d - D2) / 4, siem_transverse) if d > 0 else 0
+
+        # B111/B112: наружное и внутреннее точение (продольная скорость B55)
+        B111 = (S * B80) / speed_long if speed_long > 0 else 0
+        B112 = (t * B82) / speed_long if speed_long > 0 else 0
+
+        # B115: торцовка — длина (D1-D2), скорость поперечная по среднему диаметру
+        sp_face = feed_speed((D1 + D2) / 2 if D2 > 0 else D1)
+        B115 = ((D1 - D2) * B81) / sp_face if sp_face > 0 else 0
+
+        # B116: фаски ch1-ch10 (Excel B129:K129, каждая длина ROUND(...,2))
+        ch_total = sum(
+            round(to_float(p.get(f'ch{i}', 0)) / math.cos(to_float(p.get(f'angle_ch{i}', 0))), 2)
+            for i in range(1, 11) if to_float(p.get(f'ch{i}', 0)) > 0
         )
+        B116 = ch_total / chamfer_speed if chamfer_speed > 0 else 0
 
-        if to_float(p.get('L', 0)) > 0 and to_float(p.get('H', 0)) > 0:
+        # B113: 1-я внутренняя проточка DM, проходы по глубине (a+E)/2 (B5/B6/B83)
+        B83 = passes_if((a + E_val) / 2, siem_transverse)
+        B113 = 0
+        if DM > 0 and d > 0 and B83 > 0:
+            sp = feed_speed((DM + d) / 2)
+            B113 = (((DM - d) / 2) * B83) / sp if sp > 0 else 0
+
+        # B114: 2-я внутренняя проточка Dw, проходы (t-b) без /2 и c/2 (B27/B84/B85).
+        # Скорость B58: приближенный HLOOKUP станка — подача и обороты берутся
+        # из соседней колонки (16к20 -> обороты 0Л52, CK5126 -> данные 1М65)
+        B84 = passes_if(t - b_val, siem_transverse) if b_val > 0 else 0
+        B85 = passes_if(c_val / 2, siem_transverse)
+        B114 = 0
+        if Dw_val > 0 and d > 0 and (B84 + B85) > 0:
+            feed_col = data.APPROX_FEED_COL.get(current_machine, current_machine)
+            appr_feed = to_float(data.FEEDRATE_DATA.get(feed_col, [0] * 5)[3])
+            rpm_col = data.APPROX_RPM_COL.get(current_machine, current_machine)
+            sp = appr_feed * rpm_in_col(rpm_col, (Dw_val + d) / 2)
+            B114 = (((Dw_val - d) / 2) * (B84 + B85)) / sp if sp > 0 else 0
+
+        # B117/B118: компенсатор — расточка с канавой (Dm1) и сама канава (K-E)
+        B117 = B118 = 0
+        if Dm1_val > 0 and d > 0 and B83 > 0:
+            # B63: обороты на ступень диаметра ниже ближайшего среднего
+            sp = feed_face * rpm_step_down(current_machine, (Dm1_val + d) / 2)
+            B117 = (((Dm1_val - d) / 2) * B83) / sp if sp > 0 else 0
+        if Dm1_val > dm2_val > 0 and K_val - E_val > 0:
+            # Ширина резца / подача на канаву не заданы для станка -> 0 (как в Excel)
+            groove_w = to_float(data.GROOVE_INSERT_WIDTH.get(current_machine, 0))
+            feed_col = data.APPROX_FEED_COL.get(current_machine, current_machine)
+            groove_feed = to_float(data.GROOVE_FEED.get(feed_col, 0)) \
+                if isinstance(data.GROOVE_FEED, dict) else to_float(data.GROOVE_FEED)
+            if groove_w > 0 and groove_feed > 0:
+                B86 = math.ceil(((Dm1_val - dm2_val) / 2) / groove_w) + 1
+                # B67: соседняя колонка оборотов и ступень диаметра ниже
+                rpm_col = data.APPROX_RPM_COL.get(current_machine, current_machine)
+                sp = groove_feed * rpm_step_down(rpm_col, (D1 + D) / 2)
+                B118 = ((K_val - E_val) * B86) / sp if sp > 0 else 0
+
+        # B119: сферическая часть (F1-F10, B103)
+        B119 = 0
+        rs = to_float(p.get('RS', 0)); ra = to_float(p.get('RA', 0))
+        a1 = to_float(p.get('A1', 0)); as_depth = to_float(p.get('as', 0))
+        if rs > 0 and ra > 0:
+            b5 = (DM - d) / 2
+            f1 = (rs * 2) * math.sin((ra / 2) * math.pi / 180)
+            f2 = math.sqrt(max(0.0, f1 ** 2 - as_depth ** 2))
+            f3 = (rs ** 2 * ((math.pi * ra / 90) - math.sin(2 * ra * math.pi / 180))) / 4
+            f4 = as_depth * (b5 - f2)
+            f5 = ((b5 - f2) * ((b5 - f2) * math.tan(a1 * math.pi / 180))) / 2
+            f7 = math.ceil(siem_long)
+            f8 = (f3 + f4 + f5) / f7 if f7 > 0 else 0
+            f9 = (2 * math.pi * a1 * ra) / 360
+            cos_a1 = math.cos(a1 * math.pi / 180)
+            f10 = (b5 - f2) / cos_a1 if cos_a1 != 0 else 0
+            sp = feed_speed((DM + d) / 2)
+            B119 = (f8 + f9 + f10) / sp if sp > 0 else 0
+
+        # B120/B121: переходной — внешняя проточка глубиной ch5 и торцевые канавы
+        B120 = B121 = 0
+        if item_type == "adapter":
+            B87 = passes_if(to_float(p.get('ch5', 0)), siem_transverse)
+            if D - DM > 0 and B87 > 0:
+                sp = feed_speed((D + DM) / 2)
+                B120 = (((D - DM) / 2) * B87) / sp if sp > 0 else 0
+        if P_val * n_val > 0:
+            sp = feed_speed(Dk_val)
+            B121 = (P_val * n_val) / sp if sp > 0 else 0
+
+        # B122: внешняя проточка по габариту t — Excel добавляет ее ВСЕМ типам (F18/B106)
+        B122 = (t * B80) / speed_long if speed_long > 0 else 0
+
+        # B123: проточка по глубине a; глубина проходов (D-Dc)/2, без Dc — D/2 (F19/F20/B88)
+        B123 = 0
+        if a > 0:
+            B88 = passes_if((D - Dc) / 2, siem_long)
+            B123 = (a * B88) / speed_long if speed_long > 0 else 0
+
+        # B125: внешняя канава втулки Dw -> Dk шириной X (F21/B89/B108)
+        B125 = 0
+        if X_val > 0 and Dw_val - Dk_val > 0:
+            B89 = passes_if(X_val, siem_long)
+            sp = feed_speed((D1 + D) / 2)
+            B125 = (((Dw_val - Dk_val) / 2) * B89) / sp if sp > 0 else 0
+
+        total_min = (B111 + B112 + B113 + B114 + B115 + B116 + B117 + B118 +
+                     B119 + B120 + B121 + B122 + B123 + B125)
+
+        # Резьба (E3, отдельной строкой): в таблице считается только для "Втулки" —
+        # лишь у нее есть флаг "Внеш.=1/Внутр.=0"; у "Втулки резьбовой" параметры
+        # флага нет, и формула E3 дает 0 (IFERROR) — повторяем поведение таблицы.
+        if item_type == "bushing" and to_float(p.get('H', 0)) > 0 and to_float(p.get('L', 0)) > 0:
             thread_min = get_thread_time(
                 th_diameter=to_float(p.get('M', D)),
                 th_pitch=to_float(p.get('H', 0)),
                 th_lenght=to_float(p.get('L', 0)),
-                th_pos=True
-            ) * n_qty
-
-        t_one_piece = t_out + t_groove + t_chams
-        total_min = (t_one_piece * n_qty) + t_face_total
+                th_pos=to_float(p.get('th_pos', 1)) == 1
+            )
 
     elif item_type == "axle":
         t_turn_out = get_turning_time(D1, D, t)
@@ -535,83 +488,6 @@ def calculate_lathe_time(item_type, p, m_info=None, force_machine=None):
         t_turn_Dc = get_turning_time(Dc, 0, t, boring=True)
         t_turn_Dm = get_turning_time(Dm, Dc, t - c, boring=True)
         total_min = t_turn_out + t_face + t_turn_Dc + t_turn_Dm
-
-    elif item_type == "rotspher":
-        # Наружное точение по Excel: длина = S (B29), внутр.: длина t (B30)
-        t_out = get_turning_time(D1, D, S)
-        t_in = get_turning_time(d, D2, t, boring=True)
-        t_face = get_facing_time(D1, D2, delta_S)
-
-        rs = to_float(p.get('RS', 0))
-        ra = to_float(p.get('RA', 0))
-        a1 = to_float(p.get('A1', 0))
-        as_depth = to_float(p.get('as', 0))
-
-        # Сферическая часть по Excel (F1-F10, B99, B111)
-        t_sphere = 0
-        if rs > 0 and ra > 0:
-            b5 = (DM - d) / 2  # длина внутренней проточки (DM-d), Excel B5
-            f1 = (rs * 2) * math.sin((ra / 2) * math.pi / 180)            # длина хорды
-            f2 = math.sqrt(max(0.0, f1**2 - as_depth**2))                  # высота сфер. части
-            f3 = (rs**2 * ((math.pi * ra / 90) - math.sin(2 * ra * math.pi / 180))) / 4  # площадь сегмента
-            f4 = as_depth * (b5 - f2)                                      # площадь 2-го сегмента
-            f5 = ((b5 - f2) * ((b5 - f2) * math.tan(a1 * math.pi / 180))) / 2  # остаток (треугольник)
-            f7 = math.ceil(siem_long)                                      # площадь вирт. пикселя
-            f8 = (f3 + f4 + f5) / f7 if f7 > 0 else 0                      # длина точения по площади
-            f9 = (2 * math.pi * a1 * ra) / 360                             # длина сферы
-            cos_a1 = math.cos(a1 * math.pi / 180)
-            f10 = (b5 - f2) / cos_a1 if cos_a1 != 0 else 0                 # длина выхода радиуса
-            sphere_path = f8 + f9 + f10                                    # B99
-            # B111 = B99 / B57 (подача поперечная × обороты по среднему (DM+d)/2)
-            speed_s = feed_face * get_rpm_for_diam((DM + d) / 2)
-            t_sphere = sphere_path / speed_s if speed_s > 0 else 0
-
-        t_chams = get_chamfer_time(
-            [to_float(p.get(f'ch{i}', 0)) for i in range(1, 5)],
-            [to_float(p.get(f'angle_ch{i}', 0)) for i in range(1, 5)]
-        )
-
-        total_min = t_out + t_in + t_face + t_sphere + t_chams
-
-    elif item_type == "threaded_bushing":
-        # Втулка резьбовая (Excel): наружное точение (S), внутреннее (t), торцовка, фаска ch1.
-        # Резьба М/H/L дополнительно учитывается машинным временем нарезания.
-        t_turn_out = get_turning_time(D1, D, S)
-        t_turn_in = get_turning_time(d, D2, t, boring=True)
-        t_face = get_facing_time(D1, D2, delta_S)
-
-        # Внутренняя резьба — отдельной строкой (Excel E3), без коэфф. всп. работ
-        if to_float(p.get('L', 0)) > 0 and to_float(p.get('H', 0)) > 0:
-            thread_min = get_thread_time(
-                th_diameter=to_float(p.get('M', D)),
-                th_pitch=to_float(p.get('H', 0)),
-                th_lenght=to_float(p.get('L', 0)),
-                th_pos=False
-            )
-
-        t_chams = get_chamfer_time(
-            [to_float(p.get('ch1', 0))],
-            [to_float(p.get('angle_ch1', 0))]
-        )
-
-        total_min = t_turn_out + t_turn_in + t_face + t_chams
-
-    elif item_type == "pin":
-        # Штифт по Excel: нар. точение заготовки по S (B111), внешняя проточка
-        # по габариту t (B106/B122), проточка D→Dc на длину a (B107/B123),
-        # торцовка (B115), фаски ch1/ch2 с углами (B116)
-        t_out_blank = get_turning_time(D1, D, S)
-        t_out_main = get_turning_time(D1, D, t)
-        t_out_step = get_turning_time(D, Dc, a)
-        t_face = get_facing_time(D1, 0, delta_S)
-
-        t_chams = get_chamfer_time(
-            [to_float(p.get('ch1', 0)), to_float(p.get('ch2', 0))],
-            [to_float(p.get('angle_ch1', 0)), to_float(p.get('angle_ch2', 0))]
-        )
-
-        total_min = t_out_blank + t_out_main + t_out_step + t_face + t_chams
-
 
     elif item_type == "hub_composite_solid":
         # =======================================================
