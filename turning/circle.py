@@ -27,6 +27,12 @@ class circle(tk.Frame):
         self.ent_D = self.add_entry(left_frame, "Внешний диаметр D (мм):")
         self.ent_t = self.add_entry(left_frame, "Толщина детали t (мм):")
 
+        self.add_label(left_frame, "--- ФАСКИ ---", bold=True)
+        self.ent_ch1 = self.add_entry(left_frame, "Размер фаски ch1 (мм):")
+        self.ent_angle_ch1 = self.add_entry(left_frame, "Угол фаски ch1:")
+        self.ent_ch2 = self.add_entry(left_frame, "Размер фаски ch2 (мм):")
+        self.ent_angle_ch2 = self.add_entry(left_frame, "Угол фаски ch2:")
+
         self.add_label(left_frame, "--- ПАРАМЕТРЫ ЗАГОТОВКИ ---", bold=True)
         self.ent_D1 = self.add_entry(left_frame, "Внешний диаметр заготовки D1 (мм):")
         self.ent_S = self.add_entry(left_frame, "Толщина листа S (мм):")
@@ -147,6 +153,10 @@ class circle(tk.Frame):
             payload = {
                 "D": float(self.ent_D.get() or 0),
                 "t": float(self.ent_t.get() or 0),
+                "ch1": float(self.ent_ch1.get() or 0),
+                "angle_ch1": float(self.ent_angle_ch1.get() or 0),
+                "ch2": float(self.ent_ch2.get() or 0),
+                "angle_ch2": float(self.ent_angle_ch2.get() or 0),
                 "D1": float(self.ent_D1.get() or 0),
                 "S": float(self.ent_S.get() or 0),
                 "D2": 0, # У круга нет внутреннего отверстия в заготовке

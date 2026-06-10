@@ -207,6 +207,19 @@ def calculate_lathe_time(item_type, p, m_info=None, force_machine=None):
         passes_t = max(2, math.ceil(radial_depth / siem))
         return (abs(length) * passes_t) / speed_long
 
+    def get_recess_time(d_outer, d_inner, depth, halve_depth=True):
+        """Проточка/расточка уступа по логике Excel (B105/B106/B112):
+        путь прохода = (d_outer - d_inner)/2, число проходов по глубине (siem поперечный),
+        скорость = подача поперечная × обороты по среднему диаметру."""
+        if depth <= 0 or abs(d_outer - d_inner) < 0.01: return 0
+        basis = (depth / 2) if halve_depth else depth
+        passes = math.ceil(basis / siem_transverse)
+        if passes <= 1: passes = 2
+        rpm_r = get_rpm_for_diam((d_outer + d_inner) / 2)
+        speed_r = feed_face * rpm_r
+        if speed_r <= 0: return 0
+        return (abs(d_outer - d_inner) / 2 * passes) / speed_r
+
     def get_chamfer_time(chamfers, angles=None):
         """chamfers: list of chamfer sizes (mm). angles: list of angles (same units as Excel cell,
         treated as radians directly — matches Excel COS(angle) behaviour). Default angle=45."""
@@ -283,19 +296,31 @@ def calculate_lathe_time(item_type, p, m_info=None, force_machine=None):
         t_turn_out = get_turning_time(D1, D, S)
         t_turn_in = get_turning_time(d, D2, t, boring=True)
         t_face = get_facing_time(D1, D2, delta_S)
-        t_turn_step = get_turning_time(D, DM, ch5_val)
-        
+
+        # Внешняя проточка D→DM: путь (D-DM)/2, проходы по глубине ch5 (Excel B112, F11/F12/B87)
+        t_turn_step = get_recess_time(D, DM, ch5_val, halve_depth=False)
+
+        # Торцевые канавы: (P*n) / (подача поперечная * обороты по Dk) (Excel B113/F17)
         rpm_k = get_rpm_for_diam(to_float(p.get('Dk', 0)))
-        t_grooves = (to_float(p.get('P', 0)) * to_float(p.get('n', 0))) / (0.1 * rpm_k) if rpm_k > 0 else 0
-        
-        t_chams = get_chamfer_time([to_float(p.get(f'ch{i}', 0)) for i in range(1, 5)])
+        speed_k = feed_face * rpm_k
+        t_grooves = (to_float(p.get('P', 0)) * to_float(p.get('n', 0))) / speed_k if speed_k > 0 else 0
+
+        # Фаски ch1-ch5 с углами (Excel B117 суммирует все фаски, включая ch5)
+        t_chams = get_chamfer_time(
+            [to_float(p.get(f'ch{i}', 0)) for i in range(1, 6)],
+            [to_float(p.get(f'angle_ch{i}', 0)) for i in range(1, 6)]
+        )
 
         total_min = t_turn_out + t_turn_in + t_face + t_turn_step + t_grooves + t_chams
 
     elif item_type == "circle":
         t_turn_out = get_turning_time(D1, D, S)
         t_face = get_facing_time(D1, 0, delta_S)
-        total_min = t_turn_out + t_face
+        t_chams = get_chamfer_time(
+            [to_float(p.get(f'ch{i}', 0)) for i in range(1, 3)],
+            [to_float(p.get(f'angle_ch{i}', 0)) for i in range(1, 3)]
+        )
+        total_min = t_turn_out + t_face + t_chams
 
     elif item_type == "compensator":
         E_val = to_float(p.get('E', 0))
@@ -307,18 +332,35 @@ def calculate_lathe_time(item_type, p, m_info=None, force_machine=None):
         t_turn_in = get_turning_time(d, D2, t, boring=True)
         t_face = get_facing_time(D1, D2, delta_S)
 
-        t_turn_K = get_turning_time(dm2_val, d, K_val, boring=True)
-        t_turn_E = get_turning_time(Dm1_val, dm2_val, E_val, boring=True)
-        
-        t_chams = get_chamfer_time([to_float(p.get(f'ch{i}', 0)) for i in range(1, 4)])
+        # Расточка с канавой: путь (DM1-d)/2, проходы по глубине E (Excel B109/B62/B83/B63)
+        t_recess = get_recess_time(Dm1_val, d, E_val)
 
-        total_min = t_turn_out + t_turn_in + t_face + t_turn_K + t_turn_E + t_chams
+        # Канава: глубина (K-E), проходы по ширине (DM1-dM2)/2 / ширина резца + 1,
+        # скорость = подача на канаву × обороты по среднему (D1+D)/2 (Excel B110/B98/B86/B67)
+        t_groove = 0
+        if K_val > E_val and Dm1_val > dm2_val:
+            groove_w = data.GROOVE_INSERT_WIDTH.get(current_machine, 4)
+            passes_groove = math.ceil(((Dm1_val - dm2_val) / 2) / groove_w) + 1
+            speed_g = data.GROOVE_FEED * get_rpm_for_diam((D1 + D) / 2)
+            if speed_g > 0:
+                t_groove = ((K_val - E_val) * passes_groove) / speed_g
+
+        t_chams = get_chamfer_time(
+            [to_float(p.get(f'ch{i}', 0)) for i in range(1, 4)],
+            [to_float(p.get(f'angle_ch{i}', 0)) for i in range(1, 4)]
+        )
+
+        total_min = t_turn_out + t_turn_in + t_face + t_recess + t_groove + t_chams
 
     elif item_type == "shell":
         t_turn_out = get_turning_time(D1, D, S)
         t_turn_in = get_turning_time(d, D2, t, boring=True)
         t_face = get_facing_time(D1, D2, delta_S)
-        total_min = t_turn_out + t_face + t_turn_in
+        t_chams = get_chamfer_time(
+            [to_float(p.get(f'ch{i}', 0)) for i in range(1, 5)],
+            [to_float(p.get(f'angle_ch{i}', 0)) for i in range(1, 5)]
+        )
+        total_min = t_turn_out + t_face + t_turn_in + t_chams
 
     elif item_type == "forming":
         # 1. Основное наружное точение (от заготовки D1 до D на всю длину S (толщина заготовки))
@@ -330,15 +372,18 @@ def calculate_lathe_time(item_type, p, m_info=None, force_machine=None):
         # 3. Торцевание общее (снимаем припуск по торцу delta_S от D1 до D2)
         t_face = get_facing_time(D1, D2, delta_S)
         
-        # 4. Наружная проточка (ступень от наружного D до DM на глубину a)
-        t_face_a = get_facing_time(D, DM, a)
-        
-        # 5. Внутренняя расточка ступени (ИСПРАВЛЕНО: от готового d до DW на глубину c)
-        t_face_c = get_facing_time(d, DW, c)
-        
-        # 6. ДОБАВЛЕНО: Снятие всех 4-х фасок по чертежу
-        t_chams = get_chamfer_time([to_float(p.get(f'ch{i}', 0)) for i in range(1, 5)])
-        
+        # 4. 1-я проточка: путь (DM-d)/2, проходы по глубине a (Excel B105/B5/B83)
+        t_face_a = get_recess_time(DM, d, a)
+
+        # 5. 2-я проточка: путь (Dw-d)/2, проходы по глубине c (Excel B106/B27/B85 "Формующие")
+        t_face_c = get_recess_time(DW, d, c)
+
+        # 6. Снятие всех 4-х фасок по чертежу
+        t_chams = get_chamfer_time(
+            [to_float(p.get(f'ch{i}', 0)) for i in range(1, 5)],
+            [to_float(p.get(f'angle_ch{i}', 0)) for i in range(1, 5)]
+        )
+
         total_min = t_turn_out + t_turn_in + t_face + t_face_a + t_face_c + t_chams
 
     elif item_type == "swivel":
@@ -351,33 +396,47 @@ def calculate_lathe_time(item_type, p, m_info=None, force_machine=None):
         # 3. Торцевание (снимаем припуск по торцу delta_S от D1 до D2)
         t_face = get_facing_time(D1, D2, delta_S)
         
-        # 4. ДОБАВЛЕНО: Снятие фасок (ch1 и ch2 по чертежу)
-        t_chams = get_chamfer_time([to_float(p.get('ch1', 0)), to_float(p.get('ch2', 0))])
+        # 4. Снятие фасок (ch1 и ch2 по чертежу)
+        t_chams = get_chamfer_time(
+            [to_float(p.get('ch1', 0)), to_float(p.get('ch2', 0))],
+            [to_float(p.get('angle_ch1', 0)), to_float(p.get('angle_ch2', 0))]
+        )
         
         total_min = t_turn_out + t_turn_in + t_face + t_chams
 
 
     elif item_type == "weldring":
+        # В Excel параметры и формулы кольца приварного идентичны фланцу приварному
         b_val = to_float(p.get('b', 0))
         Dw_val = to_float(p.get('Dw', 0))
         DM_val = to_float(p.get('DM', 0))
 
         t_turn_out = get_turning_time(D1, D, S)
-        t_turn_in = get_turning_time(d, D2, t - a, boring=True)
-        len_Dw = (S - b_val - (delta_S / 2))
-        t_turn_Dw = get_turning_time(Dw_val, d, len_Dw)
+        t_turn_in = get_turning_time(d, D2, t, boring=True)
         t_face = get_facing_time(D1, D2, delta_S)
-        t_face_groove = get_facing_time(DM_val, D2, a)
-        total_min = t_turn_out + t_turn_in + t_turn_Dw + t_face + t_face_groove
+
+        # 1-я проточка DM (глубина a): путь (DM-d)/2 (Excel B105)
+        t_face_groove = get_recess_time(DM_val, d, a)
+
+        # 2-я проточка Dw (глубина t-b): путь (Dw-d)/2 (Excel B106, проходы без деления на 2)
+        t_turn_Dw = get_recess_time(Dw_val, d, t - b_val, halve_depth=False)
+
+        t_chams = get_chamfer_time(
+            [to_float(p.get(f'ch{i}', 0)) for i in range(1, 4)],
+            [to_float(p.get(f'angle_ch{i}', 0)) for i in range(1, 4)]
+        )
+
+        total_min = t_turn_out + t_turn_in + t_turn_Dw + t_face + t_face_groove + t_chams
 
     elif item_type == "welding_tnf":
         t_turn_out = get_turning_time(D1, D, S)
         t_turn_in = get_turning_time(d, D2, t, boring=True)
         t_face = get_facing_time(D1, D2, delta_S)
-        t_turn_step = get_turning_time(DM, d, a)
+        # Проточка DM (глубина a): путь (DM-d)/2, поперечная подача (Excel B105)
+        t_turn_step = get_recess_time(DM, d, a)
         t_chams = get_chamfer_time(
             [to_float(p.get(f'ch{i}', 0)) for i in range(1, 4)],
-            [to_float(p.get(f'angle_ch{i}', 45)) for i in range(1, 4)]
+            [to_float(p.get(f'angle_ch{i}', 0)) for i in range(1, 4)]
         )
         total_min = t_turn_out + t_turn_in + t_face + t_turn_step + t_chams
 
@@ -396,24 +455,18 @@ def calculate_lathe_time(item_type, p, m_info=None, force_machine=None):
         t_face = get_facing_time(D1, D2, delta_S)
 
         # 1-й выступ DM (глубина a): путь = (DM-d)/2, скорость по среднему (DM+d)/2
-        passes_prot1 = max(2, math.ceil((a / 2) / siem_transverse))
-        rpm_prot1 = get_rpm_for_diam((DM + d) / 2)
-        speed_prot1 = feed_face * rpm_prot1
-        t_face_groove = ((DM - d) / 2 * passes_prot1) / speed_prot1 if speed_prot1 > 0 else 0
+        t_face_groove = get_recess_time(DM, d, a)
 
         # 2-й выступ Dw (глубина t-b): путь = (Dw-d)/2, скорость по среднему (Dw+d)/2
-        passes_prot2 = max(2, math.ceil((t - b_val) / siem_transverse))
-        rpm_prot2 = get_rpm_for_diam((Dw_val + d) / 2)
-        speed_prot2 = feed_face * rpm_prot2
-        t_turn_Dw = ((Dw_val - d) / 2 * passes_prot2) / speed_prot2 if speed_prot2 > 0 else 0
+        t_turn_Dw = get_recess_time(Dw_val, d, t - b_val, halve_depth=False)
 
         # Фаски (угол в тех же единицах, что и в Excel: COS(angle) напрямую)
         ch1 = to_float(p.get('ch1', 0))
         ch2 = to_float(p.get('ch2', 0))
         ch3 = to_float(p.get('ch3', 0))
-        ang1 = to_float(p.get('angle_ch1', 45))
-        ang2 = to_float(p.get('angle_ch2', 45))
-        ang3 = to_float(p.get('angle_ch3', 45))
+        ang1 = to_float(p.get('angle_ch1', 0))
+        ang2 = to_float(p.get('angle_ch2', 0))
+        ang3 = to_float(p.get('angle_ch3', 0))
         t_chams = get_chamfer_time([ch1, ch2, ch3], [ang1, ang2, ang3])
 
         total_min = t_turn_out + t_turn_in + t_face + t_face_groove + t_turn_Dw + t_chams
@@ -476,31 +529,65 @@ def calculate_lathe_time(item_type, p, m_info=None, force_machine=None):
         total_min = t_turn_out + t_face + t_turn_Dc + t_turn_Dm
 
     elif item_type == "rotspher":
-        t_out = get_turning_time(D1, D, t)
+        # Наружное точение по Excel: длина = S (B29), внутр.: длина t (B30)
+        t_out = get_turning_time(D1, D, S)
         t_in = get_turning_time(d, D2, t, boring=True)
         t_face = get_facing_time(D1, D2, delta_S)
-        
+
         rs = to_float(p.get('RS', 0))
-        ra = to_float(p.get('RA', 0))        
-        as_depth = to_float(p.get('as', 0))  
-        
+        ra = to_float(p.get('RA', 0))
+        a1 = to_float(p.get('A1', 0))
+        as_depth = to_float(p.get('as', 0))
+
+        # Сферическая часть по Excel (F1-F10, B99, B111)
+        t_sphere = 0
         if rs > 0 and ra > 0:
-            arc_path = rs * (ra * math.pi / 180)
-            passes_sphere = math.ceil(as_depth / siem_long) if as_depth > 0 else 1
-            rpm_s = get_rpm_for_diam(D)
-            t_sphere = (arc_path * passes_sphere) / (feed_turn * rpm_s) if rpm_s > 0 else 0
-        else:
-            t_sphere = 0
+            b5 = (DM - d) / 2  # длина внутренней проточки (DM-d), Excel B5
+            f1 = (rs * 2) * math.sin((ra / 2) * math.pi / 180)            # длина хорды
+            f2 = math.sqrt(max(0.0, f1**2 - as_depth**2))                  # высота сфер. части
+            f3 = (rs**2 * ((math.pi * ra / 90) - math.sin(2 * ra * math.pi / 180))) / 4  # площадь сегмента
+            f4 = as_depth * (b5 - f2)                                      # площадь 2-го сегмента
+            f5 = ((b5 - f2) * ((b5 - f2) * math.tan(a1 * math.pi / 180))) / 2  # остаток (треугольник)
+            f7 = math.ceil(siem_long)                                      # площадь вирт. пикселя
+            f8 = (f3 + f4 + f5) / f7 if f7 > 0 else 0                      # длина точения по площади
+            f9 = (2 * math.pi * a1 * ra) / 360                             # длина сферы
+            cos_a1 = math.cos(a1 * math.pi / 180)
+            f10 = (b5 - f2) / cos_a1 if cos_a1 != 0 else 0                 # длина выхода радиуса
+            sphere_path = f8 + f9 + f10                                    # B99
+            # B111 = B99 / B57 (подача поперечная × обороты по среднему (DM+d)/2)
+            speed_s = feed_face * get_rpm_for_diam((DM + d) / 2)
+            t_sphere = sphere_path / speed_s if speed_s > 0 else 0
 
-        if DM > 0 and DM < D:
-            t_protochka = get_facing_time(D, DM, siem_long)
-        else:
-            t_protochka = 0
+        t_chams = get_chamfer_time(
+            [to_float(p.get(f'ch{i}', 0)) for i in range(1, 5)],
+            [to_float(p.get(f'angle_ch{i}', 0)) for i in range(1, 5)]
+        )
 
-        total_ch_len = [to_float(p.get(f'ch{i}', 0)) for i in range(1, 5)]
-        t_chams = get_chamfer_time(total_ch_len)
+        total_min = t_out + t_in + t_face + t_sphere + t_chams
 
-        total_min = t_out + t_in + t_face + t_sphere + t_protochka + t_chams
+    elif item_type == "threaded_bushing":
+        # Втулка резьбовая (Excel): наружное точение (S), внутреннее (t), торцовка, фаска ch1.
+        # Резьба М/H/L дополнительно учитывается машинным временем нарезания.
+        t_turn_out = get_turning_time(D1, D, S)
+        t_turn_in = get_turning_time(d, D2, t, boring=True)
+        t_face = get_facing_time(D1, D2, delta_S)
+
+        t_thread_min = 0
+        if to_float(p.get('L', 0)) > 0 and to_float(p.get('H', 0)) > 0:
+            t_thread_min = get_thread_time(
+                th_diameter=to_float(p.get('M', D)),
+                th_pitch=to_float(p.get('H', 0)),
+                th_lenght=to_float(p.get('L', 0)),
+                th_pos=False,
+                th_depth_cut=0.2
+            )
+
+        t_chams = get_chamfer_time(
+            [to_float(p.get('ch1', 0))],
+            [to_float(p.get('angle_ch1', 0))]
+        )
+
+        total_min = t_turn_out + t_turn_in + t_face + t_thread_min + t_chams
 
     elif item_type == "pin":
         n_qty = to_float(p.get('n', 1))
@@ -588,6 +675,10 @@ def calculate_lathe_time(item_type, p, m_info=None, force_machine=None):
 
 
     final_time_sec = (total_min * 60) * get_AWC_coeff(final_D1, S)
+
+    # Кольцо закладное: время удваивается (Excel E2, IF("Кольцо закладное ?"=1, 2, 1))
+    if to_float(p.get('insert_ring', 0)) == 1:
+        final_time_sec *= 2
 
     log.info(f"Успешный расчет {item_type}. Чистое машинное время: {total_min:.2f} мин. "
              f"Итоговое время (с коэфф): {final_time_sec:.2f} сек.")

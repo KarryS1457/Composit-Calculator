@@ -31,6 +31,16 @@ class forming(tk.Frame):
         self.ent_DW = self.add_entry(left_frame, "Диаметр проточки DW (мм):")
         self.ent_c = self.add_entry(left_frame, "Высота проточки c (мм):")
 
+        self.add_label(left_frame, "--- ФАСКИ ---", bold=True)
+        self.ent_ch1 = self.add_entry(left_frame, "Размер фаски ch1 (мм):")
+        self.ent_angle_ch1 = self.add_entry(left_frame, "Угол фаски ch1:")
+        self.ent_ch2 = self.add_entry(left_frame, "Размер фаски ch2 (мм):")
+        self.ent_angle_ch2 = self.add_entry(left_frame, "Угол фаски ch2:")
+        self.ent_ch3 = self.add_entry(left_frame, "Размер фаски ch3 (мм):")
+        self.ent_angle_ch3 = self.add_entry(left_frame, "Угол фаски ch3:")
+        self.ent_ch4 = self.add_entry(left_frame, "Размер фаски ch4 (мм):")
+        self.ent_angle_ch4 = self.add_entry(left_frame, "Угол фаски ch4:")
+
         self.add_label(left_frame, "--- ПАРАМЕТРЫ ЗАГОТОВКИ ---", bold=True)
         self.ent_D1 = self.add_entry(left_frame, "Внешний диаметр заготовки D1 (мм):")
         self.ent_D2 = self.add_entry(left_frame, "Внутренний диаметр заготовки D2 (мм):")
@@ -155,6 +165,14 @@ class forming(tk.Frame):
                 "a": float(self.ent_a.get() or 0),
                 "DW": float(self.ent_DW.get() or 0),
                 "c": float(self.ent_c.get() or 0),
+                "ch1": float(self.ent_ch1.get() or 0),
+                "angle_ch1": float(self.ent_angle_ch1.get() or 0),
+                "ch2": float(self.ent_ch2.get() or 0),
+                "angle_ch2": float(self.ent_angle_ch2.get() or 0),
+                "ch3": float(self.ent_ch3.get() or 0),
+                "angle_ch3": float(self.ent_angle_ch3.get() or 0),
+                "ch4": float(self.ent_ch4.get() or 0),
+                "angle_ch4": float(self.ent_angle_ch4.get() or 0),
                 "D1": float(self.ent_D1.get() or 0),
                 "D2": float(self.ent_D2.get() or 0),
                 "S": float(self.ent_S.get() or 0)
