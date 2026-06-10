@@ -30,6 +30,14 @@ class compensator(tk.Frame):
         self.ent_K = self.add_entry(left_frame, "Глубина канавки K (мм):")
         self.ent_E = self.add_entry(left_frame, "Глубина упорного бурта E (мм):")
 
+        self.add_label(left_frame, "--- ФАСКИ ---", bold=True)
+        self.ent_ch1 = self.add_entry(left_frame, "Размер фаски ch1 (мм):")
+        self.ent_angle_ch1 = self.add_entry(left_frame, "Угол фаски ch1:")
+        self.ent_ch2 = self.add_entry(left_frame, "Размер фаски ch2 (мм):")
+        self.ent_angle_ch2 = self.add_entry(left_frame, "Угол фаски ch2:")
+        self.ent_ch3 = self.add_entry(left_frame, "Размер фаски ch3 (мм):")
+        self.ent_angle_ch3 = self.add_entry(left_frame, "Угол фаски ch3:")
+
         self.add_label(left_frame, "--- ПАРАМЕТРЫ ЗАГОТОВКИ ---", bold=True)
         self.ent_D1 = self.add_entry(left_frame, "Внешний диаметр заготовки D1 (мм):")
         self.ent_D2 = self.add_entry(left_frame, "Внутренний диаметр заготовки D2 (мм):")
@@ -157,6 +165,12 @@ class compensator(tk.Frame):
                 "dm2": float(self.ent_dm2.get() or 0),
                 "K": float(self.ent_K.get() or 0),
                 "E": float(self.ent_E.get() or 0),
+                "ch1": float(self.ent_ch1.get() or 0),
+                "angle_ch1": float(self.ent_angle_ch1.get() or 0),
+                "ch2": float(self.ent_ch2.get() or 0),
+                "angle_ch2": float(self.ent_angle_ch2.get() or 0),
+                "ch3": float(self.ent_ch3.get() or 0),
+                "angle_ch3": float(self.ent_angle_ch3.get() or 0),
                 "D1": float(self.ent_D1.get() or 0),
                 "D2": float(self.ent_D2.get() or 0),
                 "S": float(self.ent_S.get() or 0)

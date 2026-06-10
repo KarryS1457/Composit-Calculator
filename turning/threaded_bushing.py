@@ -31,6 +31,10 @@ class thread(tk.Frame):
         self.ent_H = self.add_entry(left_frame, "Шаг резьбы H (мм):")
         self.ent_L = self.add_entry(left_frame, "Длина резьбы L (мм):")
 
+        self.add_label(left_frame, "--- ФАСКИ ---", bold=True)
+        self.ent_ch1 = self.add_entry(left_frame, "Размер фаски ch1 (мм):")
+        self.ent_angle_ch1 = self.add_entry(left_frame, "Угол фаски ch1:")
+
         self.add_label(left_frame, "--- ПАРАМЕТРЫ ЗАГОТОВКИ ---", bold=True)
 
         self.ent_D1 = self.add_entry(left_frame, "Внешний диаметр заготовки D1 (мм):")
@@ -163,11 +167,13 @@ class thread(tk.Frame):
                 "M": float(self.ent_M.get() or 0),
                 "H": float(self.ent_H.get() or 0),
                 "L": float(self.ent_L.get() or 0),
+                "ch1": float(self.ent_ch1.get() or 0),
+                "angle_ch1": float(self.ent_angle_ch1.get() or 0),
                 "D1": float(self.ent_D1.get() or 0),
                 "D2": float(self.ent_D2.get() or 0),
                 "S": float(self.ent_S.get() or 0)
             }
-            self.controller.handle_lathe_calculation("rotspher", payload)
+            self.controller.handle_lathe_calculation("threaded_bushing", payload)
         except ValueError:
             self.res_box.config(text="ОШИБКА: Проверьте ввод", fg="red")
 
