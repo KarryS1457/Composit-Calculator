@@ -1,6 +1,6 @@
 """Тест: 50 случайных изделий, сравнение Python-программы с формулами Excel."""
-import math, sys, random
-sys.path.insert(0, '/home/user/Composit-Calculator')
+import math, sys, random, os
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import core.data as data
 import core.calculations as calc
 
