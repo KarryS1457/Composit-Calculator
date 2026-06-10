@@ -111,8 +111,35 @@ class AppPresenter:
         s = int(seconds % 60)
         return f"{seconds:.2f} сек. ({minutes_float:.2f} мин. или {m}м {s}с)"
 
+    def _validate_geometry(self, raw_data):
+        """Проверка, что геометрия детали не превышает параметры заготовки."""
+        def f(key):
+            try:
+                return float(raw_data.get(key, 0) or 0)
+            except (ValueError, TypeError):
+                return 0.0
+
+        D, d, t = f('D'), f('d'), f('t')
+        D1, D2, S = f('D1'), f('D2'), f('S')
+
+        if D1 > 0 and D > D1:
+            return ("ОШИБКА: Внешний диаметр детали (D) не может быть больше "
+                    "внешнего диаметра заготовки (D1).")
+        if S > 0 and t > S:
+            return ("ОШИБКА: Габарит детали (t) не может быть больше "
+                    "толщины заготовки (S).")
+        if D2 > 0 and d > 0 and d < D2:
+            return ("ОШИБКА: Внутренний диаметр детали (d) не может быть меньше "
+                    "внутреннего диаметра заготовки (D2).")
+        return None
+
     def _process_turning_calculation(self, item_type, raw_data):
         """Единая логика для расчетов токарной обработки (обычной и ОТП)"""
+        error = self._validate_geometry(raw_data)
+        if error:
+            self.current_screen.show_results(error)
+            return
+
         # 1. Расчет на основном станке (определяется по готовому диаметру D, как в Excel)
         main_res = calc.calculate_lathe_time(item_type, raw_data)
 
