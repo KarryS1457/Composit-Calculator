@@ -312,11 +312,15 @@ def calculate_lathe_time(item_type, p, m_info=None, force_machine=None):
         n_val = to_float(p.get('n', 0))
         X_val = to_float(p.get('X', 0))
 
+        def roundup(x):
+            """Excel ROUNDUP(x,0): округление от нуля (в т.ч. для отрицательных)."""
+            return math.ceil(x) if x >= 0 else -math.ceil(-x)
+
         def passes_if(x, siem):
             """Excel: IF(ROUNDUP(x/siem)=1, ROUNDUP+1, ROUNDUP)."""
-            if x <= 0 or siem <= 0: return 0
-            r = math.ceil(x / siem)
-            return 2 if r == 1 else r
+            if siem <= 0: return 0
+            r = roundup(x / siem)
+            return r + 1 if r == 1 else r
 
         def feed_speed(diameter):
             """Поперечная подача (мм/мин) по ближайшему среднему диаметру."""
