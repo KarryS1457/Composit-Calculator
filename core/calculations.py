@@ -165,7 +165,7 @@ def calculate_lathe_time(item_type, p, m_info=None, force_machine=None):
                 break
 
     # Обновляем технологические параметры под актуальный станок
-    m_params = data.FEEDRATE_DATA.get(current_machine, [3, 3, 0.15, 0.25, 1500])
+    m_params = data.FEEDRATE_DATA.get(current_machine, [3, 3, 0.15, 0.25, 500])
     siem_long, siem_transverse, feed_turn, feed_face, chamfer_speed = m_params
 
     # Локальная функция точного поиска оборотов шпинделя
@@ -188,7 +188,8 @@ def calculate_lathe_time(item_type, p, m_info=None, force_machine=None):
     def get_facing_time(d_start, d_end, thickness):
         if thickness <= 0 or abs(d_start - d_end) < 0.01: return 0
         path_length = abs(d_start - d_end)  # полный диаметр (как в Excel)
-        avg_diameter = (d_start + d_end) / 2
+        # Excel B46: при отсутствии второго диаметра средний = первый (IFERROR → D1)
+        avg_diameter = (d_start + d_end) / 2 if d_end > 0 else d_start
         rpm_f = get_rpm_for_diam(avg_diameter)
         speed_f = feed_face * rpm_f
         if speed_f <= 0: return 0
@@ -228,17 +229,16 @@ def calculate_lathe_time(item_type, p, m_info=None, force_machine=None):
         return total / chamfer_speed if chamfer_speed > 0 else 0
 
 
-    def get_thread_time(th_diameter, th_pitch, th_lenght, th_pos, th_depth_cut, is_machine=True):
-        # Используем данные из "Обороты резьба машин.csv"
-        if th_pos: # Внешняя резьба
-            rpm = 15 if is_machine else 10
-        else:      # Внутренняя резьба
-            rpm = 100 if is_machine else 12
-            
-        if rpm <= 0 or th_pitch <= 0: return 0.0
-       
-        th_depth = 0.6134 * th_pitch if th_pos else 0.5413 * th_pitch
-        th_passes = math.ceil(th_depth / th_depth_cut)
+    def get_thread_time(th_diameter, th_pitch, th_lenght, th_pos):
+        """Резьба по листу Excel "Расчет резьбы": глубина = (H/2)*1.1, съем 0.2 мм/проход.
+        Обороты: внешняя — маш. 15 / ручная 10 (M<16); внутренняя — маш. 100 / ручная 12 (M<36)."""
+        if th_pitch <= 0 or th_lenght <= 0: return 0.0
+        th_depth = (th_pitch / 2) * 1.1
+        th_passes = math.ceil(th_depth / 0.2)
+        if th_pos:  # внешняя резьба
+            rpm = 10 if th_diameter < 16 else 15
+        else:       # внутренняя резьба
+            rpm = 12 if th_diameter < 36 else 100
         return (th_lenght * th_passes) / (rpm * th_pitch)
 
     def get_grooving_time(D_max, D_min, width, insert_width=3.0, feed_groove=0.1):
@@ -284,6 +284,7 @@ def calculate_lathe_time(item_type, p, m_info=None, force_machine=None):
         return total_time
 
     total_min = 0.0
+    thread_min = 0.0  # резьба считается отдельно (Excel E3), без коэфф. всп. работ
 
     # --- ЛОГИКА ПО ТИПАМ ---
     if item_type == "adapter":
@@ -468,28 +469,39 @@ def calculate_lathe_time(item_type, p, m_info=None, force_machine=None):
         total_min = t_turn_out + t_turn_in + t_face + t_face_groove + t_turn_Dw + t_chams
 
     elif item_type == "bushing":
-        n_qty = to_float(p.get('n', 1))
-        t_out = get_turning_time(D1, D, t)
-        t_in = get_turning_time(d, D2, t, boring=True)
+        # Втулка по Excel: наружное точение (длина S), торцовка, внешняя канава, фаски.
+        # Резьба наружная — отдельной строкой (Excel E3).
+        n_qty = max(1.0, to_float(p.get('n', 1)))
+        t_out = get_turning_time(D1, D, S)
         t_face_total = get_facing_time(D1, D2, delta_S)
 
+        # Внешняя канава Dw→Dk: путь (Dw-Dk)/2, проходы по ширине канавы /
+        # сием продольный (Excel B125/B89/B71), подача поперечная по avg(D1, D)
+        Dw_val = to_float(p.get('Dw', 0))
+        Dk_val = to_float(p.get('Dk', 0))
+        width_x = to_float(p.get('a', 0))  # ширина канавы (Х)
         t_groove = 0
-        if to_float(p.get('DM', 0)) > 0 and to_float(p.get('a', 0)) > 0:
-            t_groove = get_facing_time(D, to_float(p.get('DM')), to_float(p.get('a')))
+        if Dw_val > Dk_val and width_x > 0:
+            passes_g = math.ceil(width_x / siem_long)
+            if passes_g <= 1: passes_g = 2
+            speed_g = feed_face * get_rpm_for_diam((D1 + D) / 2)
+            if speed_g > 0:
+                t_groove = ((Dw_val - Dk_val) / 2 * passes_g) / speed_g
 
-        t_thread_min = 0
+        t_chams = get_chamfer_time(
+            [to_float(p.get(f'ch{i}', 0)) for i in range(1, 4)],
+            [to_float(p.get(f'angle_ch{i}', 0)) for i in range(1, 4)]
+        )
+
         if to_float(p.get('L', 0)) > 0 and to_float(p.get('H', 0)) > 0:
-            t_thread_min = get_thread_time(
-                th_diameter=to_float(p.get('M', D)), 
-                th_pitch=to_float(p.get('H', 0)), 
-                th_lenght=to_float(p.get('L', 0)), 
-                th_pos=p.get('th_pos', True),
-                th_depth_cut=0.2
-            )
+            thread_min = get_thread_time(
+                th_diameter=to_float(p.get('M', D)),
+                th_pitch=to_float(p.get('H', 0)),
+                th_lenght=to_float(p.get('L', 0)),
+                th_pos=True
+            ) * n_qty
 
-        t_chams = get_chamfer_time([to_float(p.get('ch1', 0)), to_float(p.get('ch2', 0))])
-
-        t_one_piece = t_out + t_in + t_groove + t_thread_min + t_chams
+        t_one_piece = t_out + t_groove + t_chams
         total_min = (t_one_piece * n_qty) + t_face_total
 
     elif item_type == "axle":
@@ -568,14 +580,13 @@ def calculate_lathe_time(item_type, p, m_info=None, force_machine=None):
         t_turn_in = get_turning_time(d, D2, t, boring=True)
         t_face = get_facing_time(D1, D2, delta_S)
 
-        t_thread_min = 0
+        # Внутренняя резьба — отдельной строкой (Excel E3), без коэфф. всп. работ
         if to_float(p.get('L', 0)) > 0 and to_float(p.get('H', 0)) > 0:
-            t_thread_min = get_thread_time(
+            thread_min = get_thread_time(
                 th_diameter=to_float(p.get('M', D)),
                 th_pitch=to_float(p.get('H', 0)),
                 th_lenght=to_float(p.get('L', 0)),
-                th_pos=False,
-                th_depth_cut=0.2
+                th_pos=False
             )
 
         t_chams = get_chamfer_time(
@@ -583,7 +594,7 @@ def calculate_lathe_time(item_type, p, m_info=None, force_machine=None):
             [to_float(p.get('angle_ch1', 0))]
         )
 
-        total_min = t_turn_out + t_turn_in + t_face + t_thread_min + t_chams
+        total_min = t_turn_out + t_turn_in + t_face + t_chams
 
     elif item_type == "pin":
         n_qty = to_float(p.get('n', 1))
@@ -682,5 +693,6 @@ def calculate_lathe_time(item_type, p, m_info=None, force_machine=None):
     return {
         "time_sec": final_time_sec,
         "machine": current_machine,
-        "rpm": get_rpm_for_diam(D)
+        "rpm": get_rpm_for_diam(D),
+        "thread_sec": thread_min * 60
     }
