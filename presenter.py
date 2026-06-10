@@ -121,10 +121,18 @@ class AppPresenter:
                                              "Проверьте внешний диаметр детали D.")
             return
 
+        thread_sec = main_res.get('thread_sec', 0)
         res_text = (
             f"ОСНОВНОЙ СТАНОК: {main_res['machine']}\n"
             f"Обороты (D): {main_res['rpm']} об/мин\n"
-            f"ВРЕМЯ ИТОГО: {self._format_time(main_res['time_sec'])}\n"
+        )
+        if thread_sec > 0:
+            res_text += (
+                f"Время токарной обработки: {self._format_time(main_res['time_sec'])}\n"
+                f"Время обработки резьбы: {self._format_time(thread_sec)}\n"
+            )
+        res_text += (
+            f"ВРЕМЯ ИТОГО: {self._format_time(main_res['time_sec'] + thread_sec)}\n"
             f"{'-'*40}\n"
         )
 
@@ -139,7 +147,8 @@ class AppPresenter:
             res_text += "АЛЬТЕРНАТИВНЫЕ ВАРИАНТЫ:\n"
             for alt_machine in alt_machines:
                 alt_res = calc.calculate_lathe_time(item_type, raw_data, force_machine=alt_machine)
-                res_text += f"- {alt_machine}: {self._format_time(alt_res['time_sec'])}\n"
+                alt_total = alt_res['time_sec'] + alt_res.get('thread_sec', 0)
+                res_text += f"- {alt_machine}: {self._format_time(alt_total)}\n"
 
         self.current_screen.show_results(res_text)
 

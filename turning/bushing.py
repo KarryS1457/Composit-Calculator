@@ -38,6 +38,14 @@ class bushing(tk.Frame):
         self.ent_Dk = self.add_entry(left_frame, "Диаметр дна канавы Dm (мм):")
         self.ent_n = self.add_entry(left_frame, "Колличество втулок")
 
+        self.add_label(left_frame, "--- ФАСКИ ---", bold=True)
+        self.ent_ch1 = self.add_entry(left_frame, "Размер фаски ch1 (мм):")
+        self.ent_angle_ch1 = self.add_entry(left_frame, "Угол фаски ch1:")
+        self.ent_ch2 = self.add_entry(left_frame, "Размер фаски ch2 (мм):")
+        self.ent_angle_ch2 = self.add_entry(left_frame, "Угол фаски ch2:")
+        self.ent_ch3 = self.add_entry(left_frame, "Размер фаски ch3 (мм):")
+        self.ent_angle_ch3 = self.add_entry(left_frame, "Угол фаски ch3:")
+
         self.add_label(left_frame, "--- ПАРАМЕТРЫ ЗАГОТОВКИ ---", bold=True)
 
         self.ent_D1 = self.add_entry(left_frame, "Внешний диаметр заготовки D1 (мм):")
@@ -176,6 +184,12 @@ class bushing(tk.Frame):
                 "a": float(self.ent_a.get() or 0),
                 "Dm": float(self.ent_Dm.get() or 0),
                 "n": float(self.ent_n.get() or 0),
+                "ch1": float(self.ent_ch1.get() or 0),
+                "angle_ch1": float(self.ent_angle_ch1.get() or 0),
+                "ch2": float(self.ent_ch2.get() or 0),
+                "angle_ch2": float(self.ent_angle_ch2.get() or 0),
+                "ch3": float(self.ent_ch3.get() or 0),
+                "angle_ch3": float(self.ent_angle_ch3.get() or 0),
                 "D1": float(self.ent_D1.get() or 0),
                 "d": float(self.ent_d.get() or 0),
                 "S": float(self.ent_S.get() or 0)
