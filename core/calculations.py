@@ -177,10 +177,7 @@ def calculate_lathe_time(item_type, p, m_info=None, force_machine=None):
         return to_float(m_info.get('rpm', 100))
 
 
-    D1 = user_D1 if user_D1 > 0 else D1_auto
-    D2 = user_D2 if user_D2 > 0 else (max(0.0, d - allowance) if d > 0 else 0.0)
-
-    p['D1'], p['D2'], p['S'] = D1, D2, S
+    D1 = final_D1
     delta_S = S - t
 
     # Продольная скорость: единая для наружного и внутреннего точения (Excel B55)
@@ -222,16 +219,15 @@ def calculate_lathe_time(item_type, p, m_info=None, force_machine=None):
 
     def get_chamfer_time(chamfers, angles=None):
         """chamfers: list of chamfer sizes (mm). angles: list of angles (same units as Excel cell,
-        treated as radians directly — matches Excel COS(angle) behaviour). Default angle=45."""
+        treated as radians directly — matches Excel COS(angle) behaviour). Default angle=0 (cos=1)."""
         if angles is None:
-            angles = [45] * len(chamfers)
+            angles = [0] * len(chamfers)
         total = sum(
             ch / math.cos(ang) for ch, ang in zip(chamfers, angles) if ch > 0
         )
         return total / chamfer_speed if chamfer_speed > 0 else 0
 
 
-    # th_diameter ну же ли???
     def get_thread_time(th_diameter, th_pitch, th_lenght, th_pos, th_depth_cut, is_machine=True):
         # Используем данные из "Обороты резьба машин.csv"
         if th_pos: # Внешняя резьба

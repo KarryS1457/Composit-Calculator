@@ -116,6 +116,11 @@ class AppPresenter:
         # 1. Расчет на основном станке (определяется по готовому диаметру D, как в Excel)
         main_res = calc.calculate_lathe_time(item_type, raw_data)
 
+        if not main_res.get('machine'):
+            self.current_screen.show_results("ОШИБКА: Станок не найден.\n"
+                                             "Проверьте внешний диаметр детали D.")
+            return
+
         res_text = (
             f"ОСНОВНОЙ СТАНОК: {main_res['machine']}\n"
             f"Обороты (D): {main_res['rpm']} об/мин\n"
@@ -140,11 +145,17 @@ class AppPresenter:
 
     def handle_lathe_calculation(self, item_type, raw_data):
         """Обертка для расчета стандартной токарки"""
-        self._process_turning_calculation(item_type, raw_data)
+        try:
+            self._process_turning_calculation(item_type, raw_data)
+        except Exception as e:
+            self.view.show_error(f"Сбой расчета: {e}")
 
     def handle_lathe_otp_calculation(self, item_type, raw_data):
         """Обертка для расчета токарки ОТП"""
-        self._process_turning_calculation(item_type, raw_data)
+        try:
+            self._process_turning_calculation(item_type, raw_data)
+        except Exception as e:
+            self.view.show_error(f"Сбой расчета: {e}")
 
     # --- СЕКРЕТНАЯ ЛОГИКА (Пасхалка) ---
     def _handle_keypress(self, event):
