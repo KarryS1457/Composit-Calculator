@@ -113,29 +113,28 @@ class AppPresenter:
 
     def _process_turning_calculation(self, item_type, raw_data):
         """Единая логика для расчетов токарной обработки (обычной и ОТП)"""
-        # 1. Поиск станков
-        main_res, alternatives = calc.calculate_turning_parameters(raw_data['D1'])
-       
-        if not main_res:
-            self.current_screen.show_results("ОШИБКА: Станок не найден")
-            return
+        # 1. Расчет на основном станке (определяется по готовому диаметру D, как в Excel)
+        main_res = calc.calculate_lathe_time(item_type, raw_data)
 
-        # 2. Расчет для основного станка
-        main_time_sec = calc.calculate_lathe_time(item_type, raw_data, main_res)
-       
         res_text = (
             f"ОСНОВНОЙ СТАНОК: {main_res['machine']}\n"
             f"Обороты (D): {main_res['rpm']} об/мин\n"
-            f"ВРЕМЯ ИТОГО: {self._format_time(main_time_sec)}\n"
+            f"ВРЕМЯ ИТОГО: {self._format_time(main_res['time_sec'])}\n"
             f"{'-'*40}\n"
         )
 
-        # 3. Расчет для альтернатив
-        if alternatives:
+        # 2. Расчет для альтернативных станков, в диапазон которых попадает диаметр D
+        D = float(raw_data.get('D', 0) or 0)
+        alt_machines = [
+            name for name, (diams, _) in data.TURNING_DATA.items()
+            if name != main_res['machine'] and min(diams) <= D <= max(diams)
+        ]
+
+        if alt_machines:
             res_text += "АЛЬТЕРНАТИВНЫЕ ВАРИАНТЫ:\n"
-            for alt in alternatives:
-                alt_time_sec = calc.calculate_lathe_time(item_type, raw_data, alt)
-                res_text += f"- {alt['machine']}: {self._format_time(alt_time_sec)}\n"
+            for alt_machine in alt_machines:
+                alt_res = calc.calculate_lathe_time(item_type, raw_data, force_machine=alt_machine)
+                res_text += f"- {alt_machine}: {self._format_time(alt_res['time_sec'])}\n"
 
         self.current_screen.show_results(res_text)
 
