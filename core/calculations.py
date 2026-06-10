@@ -1,6 +1,6 @@
 import math
 import core.data as data
-from core.data import TURNING_DATA, RANGES_DATA, AWC_S, AWC_DATA
+from core.data import AWC_S, AWC_DATA
 from core.logger import log
 
 def trend_extrapolation(x_val, x_list, y_list):
@@ -26,37 +26,6 @@ def get_val_by_thickness(thickness, x_list, y_list):
             x1, x2, y1, y2 = x_list[i], x_list[i+1], y_list[i], y_list[i+1]
             return y1 + (thickness - x1) * (y2 - y1) / (x2 - x1)
     return y_list[-1]
-
-def calculate_turning_parameters(target_diam):
-    main_machine_name = None
-    # Определяем основной станок по диапазонам из RANGES_DATA
-    for name, (low, high) in RANGES_DATA.items():
-        if low <= target_diam <= high:
-            main_machine_name = name
-            break
-
-    main_res = None
-    alternatives = []
-
-    # Ищем данные в TURNING_DATA
-    for machine, (diams, rpms) in TURNING_DATA.items():
-        if min(diams) <= target_diam <= max(diams):
-            nearest_diam = min(diams, key=lambda x: abs(x - target_diam))
-            idx = diams.index(nearest_diam)
-            rpm_value = rpms[idx]
-
-            m_data = {
-                "machine": machine,
-                "rpm": rpm_value,
-                "table_diam": nearest_diam
-            }
-
-            if machine == main_machine_name:
-                main_res = m_data
-            else:
-                alternatives.append(m_data)
-
-    return main_res, alternatives
 
 def get_AWC_coeff(target_d, target_s):
     d_keys = sorted(AWC_DATA.keys())
@@ -116,7 +85,7 @@ def calculate_weld_logic(gost, s, l_mm, m, k_lp, k_pos, k_posture, weld_data, ch
         "s": s
     }
 
-def calculate_lathe_time(item_type, p, m_info):
+def calculate_lathe_time(item_type, p, m_info=None, force_machine=None):
     # Вспомогательная функция для безопасного извлечения чисел
     def to_float(val):
         if isinstance(val, list):
@@ -154,7 +123,7 @@ def calculate_lathe_time(item_type, p, m_info):
         Dm1 = to_float(p.get('Dm1', 0))
         Dm2 = to_float(p.get('Dm2', 0))
     except Exception:
-        return 0.0
+        return {"time_sec": 0.0, "machine": None, "rpm": 0}
 
 
     # Синхронизация названий типов для SHEET_PRODUCTS во избежание багов со строками
@@ -178,17 +147,22 @@ def calculate_lathe_time(item_type, p, m_info):
     D2 = user_D2 if user_D2 > 0 else (max(0.0, d - allowance) if d > 0 else 0.0)
 
 
+    m_info = m_info or {}
     log.debug(f"Старт расчета {item_type}. Параметры GUI: {p}, Станок: {m_info.get('machine')}")
 
-    # Определяем станок по готовому диаметру детали D (как в эталонном Excel)
-    current_machine = m_info.get('machine')
-    for name, (low, high) in data.RANGES_DATA.items():
-        if low <= D <= high:
-            if current_machine != name:
-                log.warning(f"АВТОКОРРЕКЦИЯ: Станок изменен с {current_machine} на {name} "
-                            f"(диаметр детали {D} мм)")
-            current_machine = name
-            break
+    if force_machine:
+        # Принудительно используем заданный станок (для расчета альтернатив)
+        current_machine = force_machine
+    else:
+        # Определяем станок по готовому диаметру детали D (как в эталонном Excel)
+        current_machine = m_info.get('machine')
+        for name, (low, high) in data.RANGES_DATA.items():
+            if low <= D <= high:
+                if current_machine != name:
+                    log.warning(f"АВТОКОРРЕКЦИЯ: Станок изменен с {current_machine} на {name} "
+                                f"(диаметр детали {D} мм)")
+                current_machine = name
+                break
 
     # Обновляем технологические параметры под актуальный станок
     m_params = data.FEEDRATE_DATA.get(current_machine, [3, 3, 0.15, 0.25, 1500])
@@ -614,8 +588,12 @@ def calculate_lathe_time(item_type, p, m_info):
 
 
     final_time_sec = (total_min * 60) * get_AWC_coeff(final_D1, S)
-    
+
     log.info(f"Успешный расчет {item_type}. Чистое машинное время: {total_min:.2f} мин. "
              f"Итоговое время (с коэфф): {final_time_sec:.2f} сек.")
-             
-    return final_time_sec
+
+    return {
+        "time_sec": final_time_sec,
+        "machine": current_machine,
+        "rpm": get_rpm_for_diam(D)
+    }
