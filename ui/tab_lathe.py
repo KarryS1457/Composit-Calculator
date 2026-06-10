@@ -11,6 +11,7 @@ from turning.bushing import bushing
 from turning.welding_flange_tnf import weldingtnf
 from turning.welded_ring import weldring
 from turning.welding_flange import weldflange
+from turning.pin import pin
 
 class TabLathe(tk.Frame):
     def __init__(self, parent, presenter):
@@ -42,17 +43,18 @@ class TabLathe(tk.Frame):
        
         menu_buttons = [
             ("Фланец поворотный", swivel),
-            ("Фланец поворотный сферический (в разработке)", rotspher),
+            ("Фланец поворотный сферический", rotspher),
             ("Фланец компенсатора", compensator),
             ("Фланец формующий", forming),
             ("Обечайка", shell),
             ("Круг", circle),
             ("Фланец переходной", adapter),
-            ("Втулка (в разработке)", bushing),
-            ("Втулка резьбовая (в разработке)", thread),
+            ("Втулка", bushing),
+            ("Втулка резьбовая", thread),
             ("Кольцо приварное", weldring),
             ("Фланец приварной", weldflange),
-            ("Фланец приварной ТНФ", weldingtnf)
+            ("Фланец приварной ТНФ", weldingtnf),
+            ("Штифт", pin)
         ]
        
         for text, screen_class in menu_buttons:
