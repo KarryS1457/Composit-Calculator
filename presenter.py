@@ -136,12 +136,17 @@ class AppPresenter:
             f"{'-'*40}\n"
         )
 
-        # 2. Расчет для альтернативных станков, в диапазон которых попадает диаметр D
+        # 2. Расчет для альтернативных станков: станок подходит, если у него
+        # заданы подачи (в таблице норм) и есть обороты в диапазоне диаметра D
         D = float(raw_data.get('D', 0) or 0)
-        alt_machines = [
-            name for name, (diams, _) in data.TURNING_DATA.items()
-            if name != main_res['machine'] and min(diams) <= D <= max(diams)
-        ]
+        alt_machines = []
+        for name, (diams, rpms) in data.TURNING_DATA.items():
+            if name == main_res['machine']:
+                continue
+            feeds = data.FEEDRATE_DATA.get(name, [0, 0, 0, 0, 0])
+            covered = [dm for dm, r in zip(diams, rpms) if r > 0]
+            if feeds[2] > 0 and covered and min(covered) <= D <= max(covered):
+                alt_machines.append(name)
 
         if alt_machines:
             res_text += "АЛЬТЕРНАТИВНЫЕ ВАРИАНТЫ:\n"
