@@ -1,5 +1,5 @@
 import tkinter as tk
-from core.utils import resource_path
+from core.utils import resource_path, ScrollableFrame
 from PIL import Image, ImageTk
 
 class compensator(tk.Frame):
@@ -18,8 +18,10 @@ class compensator(tk.Frame):
         main_content = tk.Frame(self)
         main_content.pack(fill="both", expand=True, padx=10)
 
-        left_frame = tk.Frame(main_content)
-        left_frame.pack(side="left", fill="y", padx=(0, 20))
+        left_container = ScrollableFrame(main_content, width=320)
+        left_container.pack(side="left", fill="y", padx=(0, 20))
+        left_container.pack_propagate(False)
+        left_frame = left_container.inner_frame
                  
         self.add_label(left_frame, "--- ГЕОМЕТРИЯ ДЕТАЛИ ---", bold=True)
         self.ent_D = self.add_entry(left_frame, "Внешний диаметр D (мм):")
