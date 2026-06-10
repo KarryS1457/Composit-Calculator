@@ -103,6 +103,76 @@ ADMISSION_DATA = {
 }
 
 SHEET_PRODUCTS = [
-        "swivel", "rotspher", "compensator", "forming", 
+        "swivel", "rotspher", "compensator", "forming",
         "adapter", "weldring", "weldflange", "weldingtnf",
     ]
+
+
+# =====================================================================
+# ЗАГРУЗКА НОРМ ИЗ ВНЕШНЕГО ФАЙЛА "нормы.json"
+# Технолог-нормировщик может править нормы без изменения кода:
+# файл "нормы.json" лежит рядом с программой (или в корне проекта).
+# Если файл отсутствует или какая-то секция в нем не заполнена —
+# используются значения по умолчанию, заданные выше в этом модуле.
+# =====================================================================
+import json as _json
+import os as _os
+import sys as _sys
+
+def _norms_file_path():
+    if getattr(_sys, 'frozen', False):
+        base_dir = _os.path.dirname(_sys.executable)
+    else:
+        base_dir = _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__)))
+    return _os.path.join(base_dir, "нормы.json")
+
+def _to_num_keys(d):
+    """Ключи JSON всегда строки — возвращаем числовые ключи для таблиц норм."""
+    out = {}
+    for k, v in d.items():
+        try:
+            num = float(k)
+            out[int(num) if num == int(num) else num] = v
+        except (ValueError, TypeError):
+            out[k] = v
+    return out
+
+def _load_external_norms():
+    path = _norms_file_path()
+    if not _os.path.exists(path):
+        return
+    try:
+        with open(path, encoding='utf-8') as f:
+            norms = _json.load(f)
+    except Exception as e:
+        print(f"ВНИМАНИЕ: файл норм '{path}' не прочитан ({e}). "
+              f"Используются нормы по умолчанию.")
+        return
+
+    g = globals()
+    plain = ("FEEDRATE_DATA", "GROOVE_INSERT_WIDTH",
+             "WELD_DATA", "CHAMFER_SETUP_TIME")
+    numeric_keys = ("AWC_DATA", "ADMISSION_DATA")
+    scalars = ("GROOVE_FEED", "CHAMFER_COMPLEXITY_K", "AWC_S")
+    try:
+        for name in plain:
+            if isinstance(norms.get(name), dict) and norms[name]:
+                g[name] = norms[name]
+        for name in numeric_keys:
+            if isinstance(norms.get(name), dict) and norms[name]:
+                g[name] = _to_num_keys(norms[name])
+        for name in scalars:
+            if norms.get(name) is not None:
+                g[name] = norms[name]
+        # RANGES_DATA: в JSON диапазоны — списки [мин, макс], в коде — кортежи
+        if isinstance(norms.get("RANGES_DATA"), dict) and norms["RANGES_DATA"]:
+            g["RANGES_DATA"] = {k: tuple(v) for k, v in norms["RANGES_DATA"].items()}
+        # TURNING_DATA: пары списков [диаметры, обороты]
+        if isinstance(norms.get("TURNING_DATA"), dict) and norms["TURNING_DATA"]:
+            g["TURNING_DATA"] = {k: (list(v[0]), list(v[1]))
+                                 for k, v in norms["TURNING_DATA"].items()}
+    except Exception as e:
+        print(f"ВНИМАНИЕ: ошибка применения норм из '{path}' ({e}). "
+              f"Часть норм может остаться по умолчанию.")
+
+_load_external_norms()
