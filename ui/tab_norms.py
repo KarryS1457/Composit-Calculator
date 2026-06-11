@@ -78,10 +78,13 @@ class TabNorms(tk.Frame):
 
         bottom = tk.Frame(self)
         bottom.pack(fill="x", pady=10)
-        tk.Button(bottom, text="СОХРАНИТЬ", bg="#27ae60", fg="white",
+        tk.Button(bottom, text="СОХРАНИТЬ (на этом компьютере)", bg="#27ae60", fg="white",
                   font=("Arial", 12, "bold"),
                   command=self._save).pack(fill="x", ipady=5)
-        self.lbl_status = tk.Label(bottom, text="", font=("Arial", 10))
+        tk.Button(bottom, text="ОПУБЛИКОВАТЬ ДЛЯ ВСЕХ КОМПЬЮТЕРОВ", bg="#2980b9", fg="white",
+                  font=("Arial", 10, "bold"),
+                  command=self._publish).pack(fill="x", ipady=4, pady=(5, 0))
+        self.lbl_status = tk.Label(bottom, text="", font=("Arial", 10), wraplength=550, justify="left")
         self.lbl_status.pack(pady=(5, 0))
 
     def _render_section(self, parent, section, table):
@@ -167,7 +170,30 @@ class TabNorms(tk.Frame):
         except Exception as e:
             messagebox.showerror("Ошибка", f"Не удалось сохранить файл норм: {e}")
             return
-        self.lbl_status.config(text="Нормы сохранены и применены", fg="#27ae60")
+        self.lbl_status.config(
+            text="Нормы сохранены и применены на этом компьютере. "
+                 "Чтобы разослать их на остальные компьютеры, нажмите "
+                 "«ОПУБЛИКОВАТЬ ДЛЯ ВСЕХ КОМПЬЮТЕРОВ».", fg="#27ae60")
+
+    def _publish(self):
+        if not messagebox.askyesno(
+                "Публикация норм",
+                "Текущие нормы (сохраненные на этом компьютере) будут разосланы "
+                "на ВСЕ компьютеры завода. Продолжить?"):
+            return
+        try:
+            ok = data.publish_norms()
+        except Exception as e:
+            messagebox.showerror("Ошибка", f"Не удалось опубликовать нормы: {e}")
+            return
+        if ok:
+            self.lbl_status.config(
+                text="Нормы опубликованы в сетевую папку — разойдутся на все компьютеры.",
+                fg="#27ae60")
+        else:
+            self.lbl_status.config(
+                text="Не удалось опубликовать: сетевая папка недоступна.",
+                fg="#e67e22")
 
     def _collect(self):
         out = {}
