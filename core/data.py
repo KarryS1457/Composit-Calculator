@@ -223,9 +223,9 @@ def norms_as_dict():
     }
 
 def save_norms(norms):
-    """Сохраняет нормы локально и в сетевую папку обновлений, сразу
-    применяет их в программе. Возвращает True, если центральная копия
-    (в сетевой папке) тоже обновлена."""
+    """Сохраняет нормы только локально (на этом компьютере) и сразу
+    применяет их в программе. Чтобы разослать на все компьютеры —
+    отдельно вызвать publish_norms()."""
     payload = {
         "_СПРАВКА": {
             "что это": "Файл норм для программы расчета. Правьте значения и перезапустите программу.",
@@ -238,10 +238,17 @@ def save_norms(norms):
     with open(_norms_file_path(), 'w', encoding='utf-8') as f:
         f.write(text)
     _load_external_norms()
-    # Публикуем в сетевую папку: оттуда нормы разойдутся на все компьютеры
+
+def publish_norms():
+    """Копирует текущий локальный нормы.json в сетевую папку обновлений —
+    оттуда он разойдется на все компьютеры (они подтягивают его при старте).
+    Возвращает True при успехе."""
     try:
         from core.updater import UPDATE_DIR
-        with open(_os.path.join(UPDATE_DIR, "нормы.json"), 'w', encoding='utf-8') as f:
+        local = _norms_file_path()
+        with open(local, 'rb') as f:
+            text = f.read()
+        with open(_os.path.join(UPDATE_DIR, "нормы.json"), 'wb') as f:
             f.write(text)
         return True
     except Exception:
