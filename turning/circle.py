@@ -29,15 +29,15 @@ class circle(tk.Frame):
         self.ent_D = self.add_entry(left_frame, "Внешний диаметр D (мм):")
         self.ent_t = self.add_entry(left_frame, "Толщина детали t (мм):")
 
+        self.add_label(left_frame, "--- ПАРАМЕТРЫ ЗАГОТОВКИ ---", bold=True)
+        self.ent_D1 = self.add_entry(left_frame, "Внешний диаметр заготовки D1 (мм):")
+        self.ent_S = self.add_entry(left_frame, "Толщина листа S (мм):")
+
         self.add_label(left_frame, "--- ФАСКИ ---", bold=True)
         self.ent_ch1 = self.add_entry(left_frame, "Размер фаски ch1 (мм):")
         self.ent_angle_ch1 = self.add_entry(left_frame, "Угол фаски ch1:")
         self.ent_ch2 = self.add_entry(left_frame, "Размер фаски ch2 (мм):")
         self.ent_angle_ch2 = self.add_entry(left_frame, "Угол фаски ch2:")
-
-        self.add_label(left_frame, "--- ПАРАМЕТРЫ ЗАГОТОВКИ ---", bold=True)
-        self.ent_D1 = self.add_entry(left_frame, "Внешний диаметр заготовки D1 (мм):")
-        self.ent_S = self.add_entry(left_frame, "Толщина листа S (мм):")
                
         # Правый блок (Эскиз)
         self.right_frame = tk.Frame(main_content, bg="#ffffff", width=400)
