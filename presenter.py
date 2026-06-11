@@ -1,7 +1,6 @@
 import tkinter as tk
 import sys
 import threading
-import webbrowser
 from tkinter import messagebox
 from PIL import Image, ImageTk
 import core.calculations as calc
@@ -40,7 +39,8 @@ class AppPresenter:
     # --- АВТООБНОВЛЕНИЕ ---
 
     def _check_updates_in_background(self):
-        """Проверяет GitHub Releases в фоновом потоке, чтобы не тормозить запуск"""
+        """Проверяет сетевую папку обновлений в фоновом потоке,
+        чтобы не тормозить запуск"""
         def worker():
             info = updater.check_for_update()
             if info:
@@ -56,9 +56,12 @@ class AppPresenter:
                 f"Установить обновление сейчас?"):
             return
 
-        # В режиме разработки (не exe) или без exe в релизе — открываем страницу
-        if not getattr(sys, 'frozen', False) or not info.get('exe_url'):
-            webbrowser.open(info['page_url'])
+        # В режиме разработки (запуск из исходников) exe заменить нечего
+        if not getattr(sys, 'frozen', False):
+            messagebox.showinfo(
+                "Обновление",
+                f"Программа запущена не из exe — автообновление недоступно.\n"
+                f"Новая версия лежит в папке:\n{updater.UPDATE_DIR}")
             return
 
         progress = tk.Toplevel(self.view)
@@ -76,7 +79,7 @@ class AppPresenter:
 
         def worker():
             try:
-                new_exe = updater.download_update(info['exe_url'], set_progress)
+                new_exe = updater.download_update(info['exe_path'], set_progress)
                 updater.apply_update(new_exe)
             except Exception as e:
                 self.view.after(0, lambda: (
