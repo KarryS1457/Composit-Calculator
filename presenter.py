@@ -1,7 +1,12 @@
 import tkinter as tk
+import sys
+import threading
+import webbrowser
+from tkinter import messagebox
 from PIL import Image, ImageTk
 import core.calculations as calc
 import core.data as data
+import core.updater as updater
 from ui.menu import MainMenu
 from ui.tab_weld import TabWeld
 from ui.tab_lathe import TabLathe
@@ -29,7 +34,59 @@ class AppPresenter:
     def start(self):
         """Запуск приложения"""
         self.show_main_menu()
+        self._check_updates_in_background()
         self.view.mainloop()
+
+    # --- АВТООБНОВЛЕНИЕ ---
+
+    def _check_updates_in_background(self):
+        """Проверяет GitHub Releases в фоновом потоке, чтобы не тормозить запуск"""
+        def worker():
+            info = updater.check_for_update()
+            if info:
+                # Все обращения к Tkinter — только из главного потока
+                self.view.after(0, lambda: self._offer_update(info))
+        threading.Thread(target=worker, daemon=True).start()
+
+    def _offer_update(self, info):
+        if not messagebox.askyesno(
+                "Доступно обновление",
+                f"Вышла новая версия программы: {info['version']}\n"
+                f"Текущая версия: {updater.VERSION}\n\n"
+                f"Установить обновление сейчас?"):
+            return
+
+        # В режиме разработки (не exe) или без exe в релизе — открываем страницу
+        if not getattr(sys, 'frozen', False) or not info.get('exe_url'):
+            webbrowser.open(info['page_url'])
+            return
+
+        progress = tk.Toplevel(self.view)
+        progress.title("Обновление")
+        progress.geometry("320x90")
+        progress.resizable(False, False)
+        progress.transient(self.view)
+        lbl = tk.Label(progress, text="Загрузка обновления...", font=("Arial", 11))
+        lbl.pack(expand=True, pady=20)
+
+        def set_progress(done, total):
+            if total:
+                self.view.after(0, lbl.config,
+                                {"text": f"Загрузка обновления... {done * 100 // total}%"})
+
+        def worker():
+            try:
+                new_exe = updater.download_update(info['exe_url'], set_progress)
+                updater.apply_update(new_exe)
+            except Exception as e:
+                self.view.after(0, lambda: (
+                    progress.destroy(),
+                    self.view.show_error(f"Не удалось установить обновление: {e}")))
+                return
+            # Батник ждет закрытия программы, заменяет exe и перезапускает
+            self.view.after(0, self.view.destroy)
+
+        threading.Thread(target=worker, daemon=True).start()
 
     # --- НАВИГАЦИЯ ---
 
