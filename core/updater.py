@@ -92,14 +92,26 @@ def apply_update(new_exe_path):
         raise RuntimeError("Автообновление доступно только в собранной .exe версии")
 
     current_exe = sys.executable
+    pid = os.getpid()
     bat_path = os.path.join(tempfile.gettempdir(), "composit_update.bat")
-    # ping = пауза 2 сек; цикл повторяет copy, пока exe не освободится
+    # 1. ждем, пока процесс с этим PID реально завершится (иначе Windows может
+    #    позволить перезаписать exe, пока старая копия еще работает —
+    #    тогда откроются сразу два окна программы)
+    # 2. затем копируем новый exe поверх старого и перезапускаем его
     bat = f"""@echo off
 chcp 65001 >nul
-:wait
-ping 127.0.0.1 -n 3 >nul
+:wait_exit
+tasklist /FI "PID eq {pid}" 2>nul | find "{pid}" >nul
+if not errorlevel 1 (
+    ping 127.0.0.1 -n 2 >nul
+    goto wait_exit
+)
+:copy_loop
 copy /y "{new_exe_path}" "{current_exe}" >nul 2>&1
-if errorlevel 1 goto wait
+if errorlevel 1 (
+    ping 127.0.0.1 -n 2 >nul
+    goto copy_loop
+)
 del "{new_exe_path}" >nul 2>&1
 start "" "{current_exe}"
 del "%~f0"
