@@ -64,11 +64,26 @@ class TabLathe(tk.Frame):
                             command=lambda sc=screen_class: self.presenter.show_lathe_detail(sc))
             btn.pack(fill="x", pady=10, padx=20)
 
-        self.bind("<Enter>", lambda _: self.canvas.bind_all("<MouseWheel>", self._on_mousewheel))
-        self.bind("<Leave>", lambda _: self.canvas.unbind_all("<MouseWheel>"))
+        # Прокрутку вешаем напрямую на canvas и все дочерние виджеты, а не
+        # глобально через bind_all: иначе после ухода с экрана (виджеты
+        # уничтожены) колесо мыши продолжает слать события в удаленный canvas.
+        self._bind_mousewheel(self.canvas)
+        self._bind_mousewheel(self.scrollable_frame)
+        for child in self.scrollable_frame.winfo_children():
+            self._bind_mousewheel(child)
+
+    def _bind_mousewheel(self, widget):
+        widget.bind("<MouseWheel>", self._on_mousewheel, add="+")
+        widget.bind("<Button-4>", self._on_mousewheel, add="+")
+        widget.bind("<Button-5>", self._on_mousewheel, add="+")
 
     def _on_canvas_configure(self, event):
         self.canvas.itemconfig(self.canvas_window, width=event.width)
 
     def _on_mousewheel(self, event):
-        self.canvas.yview_scroll(int(-1*(event.delta/120)), "units")
+        if not self.canvas.winfo_exists():
+            return
+        if event.num == 4 or event.delta > 0:
+            self.canvas.yview_scroll(-1, "units")
+        elif event.num == 5 or event.delta < 0:
+            self.canvas.yview_scroll(1, "units")
