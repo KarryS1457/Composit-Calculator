@@ -33,6 +33,11 @@ class forming(tk.Frame):
         self.ent_DW = self.add_entry(left_frame, "Диаметр проточки DW (мм):")
         self.ent_c = self.add_entry(left_frame, "Высота проточки c (мм):")
 
+        self.add_label(left_frame, "--- ПАРАМЕТРЫ ЗАГОТОВКИ ---", bold=True)
+        self.ent_D1 = self.add_entry(left_frame, "Внешний диаметр заготовки D1 (мм):")
+        self.ent_D2 = self.add_entry(left_frame, "Внутренний диаметр заготовки D2 (мм):")
+        self.ent_S = self.add_entry(left_frame, "Толщина листа S (мм):")
+
         self.add_label(left_frame, "--- ФАСКИ ---", bold=True)
         self.ent_ch1 = self.add_entry(left_frame, "Размер фаски ch1 (мм):")
         self.ent_angle_ch1 = self.add_entry(left_frame, "Угол фаски ch1:")
@@ -42,11 +47,6 @@ class forming(tk.Frame):
         self.ent_angle_ch3 = self.add_entry(left_frame, "Угол фаски ch3:")
         self.ent_ch4 = self.add_entry(left_frame, "Размер фаски ch4 (мм):")
         self.ent_angle_ch4 = self.add_entry(left_frame, "Угол фаски ch4:")
-
-        self.add_label(left_frame, "--- ПАРАМЕТРЫ ЗАГОТОВКИ ---", bold=True)
-        self.ent_D1 = self.add_entry(left_frame, "Внешний диаметр заготовки D1 (мм):")
-        self.ent_D2 = self.add_entry(left_frame, "Внутренний диаметр заготовки D2 (мм):")
-        self.ent_S = self.add_entry(left_frame, "Толщина листа S (мм):")
 
         # Правый блок (Эскиз)
         self.right_frame = tk.Frame(main_content, bg="#ffffff", width=400)

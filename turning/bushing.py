@@ -28,7 +28,6 @@ class bushing(tk.Frame):
         left_frame = left_container.inner_frame
 
         self.add_label(left_frame, "--- ГЕОМЕТРИЯ ДЕТАЛИ ---", bold=True)
-
         self.ent_D = self.add_entry(left_frame, "Внешний диаметр D (мм):")
         self.ent_t = self.add_entry(left_frame, "Габарит детали t (мм):")
         self.ent_M = self.add_entry(left_frame, "Диаметр резьбы M (мм):")
@@ -43,6 +42,11 @@ class bushing(tk.Frame):
         self.ent_a = self.add_entry(left_frame, "Глубина проточки a (мм):")
         self.ent_Dk = self.add_entry(left_frame, "Диаметр дна канавы Dk (мм):")
 
+        self.add_label(left_frame, "--- ПАРАМЕТРЫ ЗАГОТОВКИ ---", bold=True)
+        self.ent_D1 = self.add_entry(left_frame, "Внешний диаметр заготовки D1 (мм):")
+        self.ent_D2 = self.add_entry(left_frame, "Внутренний диаметр заготовки D2 (мм):")
+        self.ent_S = self.add_entry(left_frame, "Толщина листа S (мм):")
+
         self.add_label(left_frame, "--- ФАСКИ ---", bold=True)
         self.ent_ch1 = self.add_entry(left_frame, "Размер фаски ch1 (мм):")
         self.ent_angle_ch1 = self.add_entry(left_frame, "Угол фаски ch1:")
@@ -50,12 +54,6 @@ class bushing(tk.Frame):
         self.ent_angle_ch2 = self.add_entry(left_frame, "Угол фаски ch2:")
         self.ent_ch3 = self.add_entry(left_frame, "Размер фаски ch3 (мм):")
         self.ent_angle_ch3 = self.add_entry(left_frame, "Угол фаски ch3:")
-
-        self.add_label(left_frame, "--- ПАРАМЕТРЫ ЗАГОТОВКИ ---", bold=True)
-
-        self.ent_D1 = self.add_entry(left_frame, "Внешний диаметр заготовки D1 (мм):")
-        self.ent_D2 = self.add_entry(left_frame, "Внутренний диаметр заготовки D2 (мм):")
-        self.ent_S = self.add_entry(left_frame, "Толщина листа S (мм):")
 
         # Правый блок (Эскиз)
         self.right_frame = tk.Frame(main_content, bg="#ffffff", width=400)
