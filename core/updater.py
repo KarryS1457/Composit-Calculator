@@ -3,10 +3,10 @@
 #
 # Как выпустить обновление:
 #   1. Увеличьте VERSION ниже (например "1.0.1")
-#   2. Соберите exe: pyinstaller main.spec
+#   2. Соберите exe: pyinstaller main.spec (получится dist/cscalc.exe)
 #   3. Скопируйте собранный exe в сетевую папку UPDATE_DIR
 #   4. Там же создайте/обновите файл version.json:
-#        {"version": "1.0.1", "file": "main.exe"}
+#        {"version": "1.0.1", "file": "cscalc.exe"}
 #      ("file" — имя exe-файла в этой же папке)
 # Программа при запуске сравнит свою версию с version.json и
 # предложит пользователю обновиться в один клик.
