@@ -25,7 +25,6 @@ class thread(tk.Frame):
         left_frame = left_container.inner_frame
 
         self.add_label(left_frame, "--- ГЕОМЕТРИЯ ДЕТАЛИ ---", bold=True)
-
         self.ent_D = self.add_entry(left_frame, "Внешний диаметр D (мм):")
         self.ent_d = self.add_entry(left_frame, "Внутренний диаметр d (мм):")
         self.ent_t = self.add_entry(left_frame, "Габарит детали t (мм):")
@@ -33,15 +32,14 @@ class thread(tk.Frame):
         self.ent_H = self.add_entry(left_frame, "Шаг резьбы H (мм):")
         self.ent_L = self.add_entry(left_frame, "Длина резьбы L (мм):")
 
-        self.add_label(left_frame, "--- ФАСКИ ---", bold=True)
-        self.ent_ch1 = self.add_entry(left_frame, "Размер фаски ch1 (мм):")
-        self.ent_angle_ch1 = self.add_entry(left_frame, "Угол фаски ch1:")
-
         self.add_label(left_frame, "--- ПАРАМЕТРЫ ЗАГОТОВКИ ---", bold=True)
-
         self.ent_D1 = self.add_entry(left_frame, "Внешний диаметр заготовки D1 (мм):")
         self.ent_D2 = self.add_entry(left_frame, "Внутренний диаметр заготовки D2 (мм):")
         self.ent_S = self.add_entry(left_frame, "Толщина листа S (мм):")
+
+        self.add_label(left_frame, "--- ФАСКИ ---", bold=True)
+        self.ent_ch1 = self.add_entry(left_frame, "Размер фаски ch1 (мм):")
+        self.ent_angle_ch1 = self.add_entry(left_frame, "Угол фаски ch1:")
 
                # Правый блок (Эскиз)
         self.right_frame = tk.Frame(main_content, bg="#ffffff", width=400)

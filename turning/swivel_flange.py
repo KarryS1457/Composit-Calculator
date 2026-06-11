@@ -29,16 +29,16 @@ class swivel(tk.Frame):
         self.ent_d = self.add_entry(left_frame, "Внутренний диаметр d (мм):")
         self.ent_t = self.add_entry(left_frame, "Габарит детали t (мм):")
 
+        self.add_label(left_frame, "--- ПАРАМЕТРЫ ЗАГОТОВКИ ---", bold=True)
+        self.ent_D1 = self.add_entry(left_frame, "Внешний диаметр заготовки D1 (мм):")
+        self.ent_D2 = self.add_entry(left_frame, "Внутренний диаметр заготовки D2 (мм):")
+        self.ent_S = self.add_entry(left_frame, "Толщина листа S (мм):")
+
         self.add_label(left_frame, "--- ФАСКИ ---", bold=True)
         self.ent_ch1 = self.add_entry(left_frame, "Размер фаски ch1 (мм):")
         self.ent_angle_ch1 = self.add_entry(left_frame, "Угол фаски ch1:")
         self.ent_ch2 = self.add_entry(left_frame, "Размер фаски ch2 (мм):")
         self.ent_angle_ch2 = self.add_entry(left_frame, "Угол фаски ch2:")
-
-        self.add_label(left_frame, "--- ПАРАМЕТРЫ ЗАГОТОВКИ ---", bold=True)
-        self.ent_D1 = self.add_entry(left_frame, "Внешний диаметр заготовки D1 (мм):")
-        self.ent_D2 = self.add_entry(left_frame, "Внутренний диаметр заготовки D2 (мм):")
-        self.ent_S = self.add_entry(left_frame, "Толщина листа S (мм):")
 
         self.var_insert_ring = tk.BooleanVar(value=False)
         tk.Checkbutton(left_frame, text="Кольцо закладное?",
