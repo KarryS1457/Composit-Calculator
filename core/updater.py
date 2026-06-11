@@ -97,7 +97,11 @@ def apply_update(new_exe_path):
     # 1. ждем (не больше ~2 минут), пока процесс старой программы завершится:
     #    tasklist в формате CSV не зависит от языка Windows, ищем PID в кавычках
     # 2. копируем новый exe поверх старого; пока файл занят — copy падает,
-    #    повторяем (не больше ~1 минуты), затем запускаем программу
+    #    повторяем (не больше ~1 минуты)
+    # 3. запускаем новую версию и проверяем, что она реально стартовала:
+    #    если процесс упал в первые 60 секунд с ошибкой (антивирус еще
+    #    сканировал файл и заблокировал загрузку DLL) — ждем и пробуем
+    #    снова, до 3 попыток
     bat = f"""@echo off
 chcp 65001 >nul
 set tries=0
@@ -119,8 +123,24 @@ ping 127.0.0.1 -n 3 >nul
 goto copy_loop
 :run
 del "{new_exe_path}" >nul 2>&1
+set attempt=0
+:start_try
+set /a attempt+=1
 ping 127.0.0.1 -n 6 >nul
-start "" "{current_exe}"
+call :seconds t0
+start /wait "" "{current_exe}"
+set rc=%errorlevel%
+if "%rc%"=="0" goto done
+call :seconds t1
+set /a elapsed=t1-t0
+if %elapsed% lss 0 set /a elapsed+=86400
+if %elapsed% gtr 60 goto done
+if %attempt% lss 3 goto start_try
+goto done
+:seconds
+for /f "tokens=1-3 delims=:,." %%a in ("%TIME: =0%") do set /a %1=(1%%a %% 100)*3600+(1%%b %% 100)*60+(1%%c %% 100)
+exit /b
+:done
 del "%~f0"
 """
     with open(bat_path, "w", encoding="utf-8") as f:
