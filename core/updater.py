@@ -94,24 +94,30 @@ def apply_update(new_exe_path):
     current_exe = sys.executable
     pid = os.getpid()
     bat_path = os.path.join(tempfile.gettempdir(), "composit_update.bat")
-    # 1. ждем, пока процесс с этим PID реально завершится (иначе Windows может
-    #    позволить перезаписать exe, пока старая копия еще работает —
-    #    тогда откроются сразу два окна программы)
-    # 2. затем копируем новый exe поверх старого и перезапускаем его
+    # 1. ждем (не больше ~2 минут), пока процесс старой программы завершится:
+    #    tasklist в формате CSV не зависит от языка Windows, ищем PID в кавычках
+    # 2. копируем новый exe поверх старого; пока файл занят — copy падает,
+    #    повторяем (не больше ~1 минуты), затем запускаем программу
     bat = f"""@echo off
 chcp 65001 >nul
+set tries=0
 :wait_exit
-tasklist /FI "PID eq {pid}" 2>nul | find "{pid}" >nul
-if not errorlevel 1 (
-    ping 127.0.0.1 -n 2 >nul
-    goto wait_exit
-)
+set /a tries+=1
+if %tries% gtr 60 goto copy_start
+tasklist /FI "PID eq {pid}" /FO CSV /NH 2>nul | findstr /C:"\\"{pid}\\"" >nul
+if errorlevel 1 goto copy_start
+ping 127.0.0.1 -n 3 >nul
+goto wait_exit
+:copy_start
+set tries=0
 :copy_loop
+set /a tries+=1
 copy /y "{new_exe_path}" "{current_exe}" >nul 2>&1
-if errorlevel 1 (
-    ping 127.0.0.1 -n 2 >nul
-    goto copy_loop
-)
+if not errorlevel 1 goto run
+if %tries% gtr 30 goto run
+ping 127.0.0.1 -n 3 >nul
+goto copy_loop
+:run
 del "{new_exe_path}" >nul 2>&1
 start "" "{current_exe}"
 del "%~f0"
@@ -119,8 +125,10 @@ del "%~f0"
     with open(bat_path, "w", encoding="utf-8") as f:
         f.write(bat)
 
+    # ВАЖНО: только CREATE_NO_WINDOW. Комбинация с DETACHED_PROCESS
+    # недопустима — из-за нее у пользователей появлялось черное окно консоли.
     subprocess.Popen(
         ["cmd", "/c", bat_path],
-        creationflags=subprocess.CREATE_NO_WINDOW | subprocess.DETACHED_PROCESS,
+        creationflags=subprocess.CREATE_NO_WINDOW,
         close_fds=True,
     )
