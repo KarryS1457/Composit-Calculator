@@ -44,3 +44,14 @@ class MainMenu(tk.Frame):
             command=self.presenter.show_lathe_otp_menu
         )
         self.btn_turning_otp.pack(fill="x", pady=10)
+
+        # Кнопка РЕДАКТОР НОРМ (доступ по паролю)
+        self.btn_norms = tk.Button(
+            self,
+            text="РЕДАКТОР НОРМ",
+            font=("Arial", 10),
+            bg="#7f8c8d",
+            fg="white",
+            command=self.presenter.show_norms_editor
+        )
+        self.btn_norms.pack(fill="x", pady=(30, 10))

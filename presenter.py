@@ -6,6 +6,7 @@ from ui.menu import MainMenu
 from ui.tab_weld import TabWeld
 from ui.tab_lathe import TabLathe
 from ui.tab_lathe_otp import TabLatheOtp
+from ui.tab_norms import TabNorms
 # Добавь импорты для других табов, когда переделаешь их:
 # from ui.tab_turning import TabTurning
 
@@ -36,6 +37,12 @@ class AppPresenter:
         """Переход в главное меню"""
         self.view.clear_screen()
         self.current_screen = MainMenu(self.view.container, self)
+        self.current_screen.pack(fill="both", expand=True)
+
+    def show_norms_editor(self):
+        """Редактор норм (доступ по паролю внутри экрана)"""
+        self.view.clear_screen()
+        self.current_screen = TabNorms(self.view.container, self)
         self.current_screen.pack(fill="both", expand=True)
 
     def show_weld_tab(self):
