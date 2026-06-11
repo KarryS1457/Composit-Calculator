@@ -119,6 +119,7 @@ ping 127.0.0.1 -n 3 >nul
 goto copy_loop
 :run
 del "{new_exe_path}" >nul 2>&1
+ping 127.0.0.1 -n 6 >nul
 start "" "{current_exe}"
 del "%~f0"
 """
