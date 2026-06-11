@@ -146,10 +146,20 @@ del "%~f0"
     with open(bat_path, "w", encoding="utf-8") as f:
         f.write(bat)
 
-    # ВАЖНО: только CREATE_NO_WINDOW. Комбинация с DETACHED_PROCESS
+    # ВАЖНО-1: только CREATE_NO_WINDOW. Комбинация с DETACHED_PROCESS
     # недопустима — из-за нее у пользователей появлялось черное окно консоли.
+    # ВАЖНО-2: окружение очищаем от служебных переменных PyInstaller
+    # (_MEIPASS2, _PYI_*, TCL/TK): иначе запущенный скриптом новый exe
+    # наследует их, не распаковывает себя и ищет файлы в уже удаленной
+    # папке _MEI старой программы — падает с "Failed to load Python DLL".
+    clean_env = {
+        k: v for k, v in os.environ.items()
+        if not k.startswith("_PYI")
+        and k not in ("_MEIPASS2", "TCL_LIBRARY", "TK_LIBRARY", "TIX_LIBRARY")
+    }
     subprocess.Popen(
         ["cmd", "/c", bat_path],
         creationflags=subprocess.CREATE_NO_WINDOW,
         close_fds=True,
+        env=clean_env,
     )
