@@ -1,5 +1,14 @@
+import os
+import sys
 import tkinter as tk
 from tkinter import messagebox  # Вынесли импорт наверх по стандарту PEP 8
+
+
+def _resource_path(name):
+    """Путь к файлу ресурса (icon.ico и т.п.) — как рядом со скриптом
+    при разработке, так и внутри распакованной .exe (PyInstaller)."""
+    base_dir = getattr(sys, '_MEIPASS', os.path.dirname(os.path.abspath(__file__)))
+    return os.path.join(base_dir, name)
 
 
 class MainView(tk.Tk):
@@ -10,10 +19,10 @@ class MainView(tk.Tk):
         self.geometry("700x850")
         self.minsize(400, 650)
 
-        # Загрузка иконки
+        # Загрузка иконки (заголовок окна, панель задач)
         try:
             # Для Windows и .exe сборок метод iconbitmap работает с .ico идеально
-            self.iconbitmap("icon.ico")
+            self.iconbitmap(_resource_path("icon.ico"))
         except Exception as e:
             # Добавлена f перед строкой, чтобы переменная {e} сработала
             print(f"Ошибка загрузки иконки: {e}")
