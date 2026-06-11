@@ -44,28 +44,26 @@ class ScrollableFrame(tk.Frame):
         # 7. Заставляем внутренний фрейм растягиваться по ширине Canvas
         self.canvas.bind("<Configure>", self._on_canvas_configure)
 
-        # 8. Биндим прокрутку колесиком мыши
-        self.bind_mouse_scroll(self.inner_frame)
+        # 8. Биндим прокрутку колесиком мыши на canvas и на все дочерние
+        # виджеты (поля ввода, метки и т.д.), т.к. события Enter/Leave
+        # внутреннего фрейма не доходят до области под дочерними виджетами.
+        self.bind_mouse_scroll(self.canvas)
+        # Дочерние виджеты добавляются позже (в конструкторе экрана-наследника),
+        # поэтому привязываем рекурсивно после завершения построения интерфейса.
+        self.after(100, lambda: self.bind_mouse_scroll(self.inner_frame, recursive=True))
 
     def _on_canvas_configure(self, event):
         """Растягиваем внутренний фрейм по ширине холста"""
         self.canvas.itemconfig(self.canvas_window, width=event.width)
 
-    def bind_mouse_scroll(self, widget):
-        """Биндим колесико мыши ко всем элементам при наведении"""
-        widget.bind("<Enter>", self._bind_wheel)
-        widget.bind("<Leave>", self._unbind_wheel)
-
-    def _bind_wheel(self, event):
-        # ИСПРАВЛЕНО: Добавлена полная поддержка Windows, Mac и Linux
-        self.canvas.bind_all("<MouseWheel>", self._on_mousewheel)
-        self.canvas.bind_all("<Button-4>", self._on_mousewheel)
-        self.canvas.bind_all("<Button-5>", self._on_mousewheel)
-
-    def _unbind_wheel(self, event):
-        self.canvas.unbind_all("<MouseWheel>")
-        self.canvas.unbind_all("<Button-4>")
-        self.canvas.unbind_all("<Button-5>")
+    def bind_mouse_scroll(self, widget, recursive=False):
+        """Биндим колесико мыши напрямую на виджет (и опционально на всех потомков)"""
+        widget.bind("<MouseWheel>", self._on_mousewheel, add="+")
+        widget.bind("<Button-4>", self._on_mousewheel, add="+")
+        widget.bind("<Button-5>", self._on_mousewheel, add="+")
+        if recursive:
+            for child in widget.winfo_children():
+                self.bind_mouse_scroll(child, recursive=True)
 
     def _on_mousewheel(self, event):
         # Универсальная обработка прокрутки
