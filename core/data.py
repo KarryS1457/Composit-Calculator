@@ -223,7 +223,9 @@ def norms_as_dict():
     }
 
 def save_norms(norms):
-    """Сохраняет нормы в файл нормы.json и сразу применяет их в программе."""
+    """Сохраняет нормы локально и в сетевую папку обновлений, сразу
+    применяет их в программе. Возвращает True, если центральная копия
+    (в сетевой папке) тоже обновлена."""
     payload = {
         "_СПРАВКА": {
             "что это": "Файл норм для программы расчета. Правьте значения и перезапустите программу.",
@@ -232,10 +234,40 @@ def save_norms(norms):
         }
     }
     payload.update(norms)
-    path = _norms_file_path()
-    with open(path, 'w', encoding='utf-8') as f:
-        _json.dump(payload, f, ensure_ascii=False, indent=2)
+    text = _json.dumps(payload, ensure_ascii=False, indent=2)
+    with open(_norms_file_path(), 'w', encoding='utf-8') as f:
+        f.write(text)
     _load_external_norms()
+    # Публикуем в сетевую папку: оттуда нормы разойдутся на все компьютеры
+    try:
+        from core.updater import UPDATE_DIR
+        with open(_os.path.join(UPDATE_DIR, "нормы.json"), 'w', encoding='utf-8') as f:
+            f.write(text)
+        return True
+    except Exception:
+        return False
+
+def _sync_norms_from_server():
+    """Подтягивает нормы из сетевой папки обновлений (если она доступна
+    и файл там отличается от локального). Так нормы централизованно
+    'обновляются вместе с exe' на всех компьютерах завода."""
+    try:
+        from core.updater import UPDATE_DIR
+        remote = _os.path.join(UPDATE_DIR, "нормы.json")
+        if not _os.path.exists(remote):
+            return
+        with open(remote, 'rb') as f:
+            remote_bytes = f.read()
+        _json.loads(remote_bytes.decode('utf-8'))  # битый файл не копируем
+        local = _norms_file_path()
+        if _os.path.exists(local):
+            with open(local, 'rb') as f:
+                if f.read() == remote_bytes:
+                    return
+        with open(local, 'wb') as f:
+            f.write(remote_bytes)
+    except Exception:
+        pass  # нет сети/прав — работаем на локальных нормах
 
 def _load_external_norms():
     path = _norms_file_path()
@@ -300,4 +332,5 @@ def _load_external_norms():
               f"Часть норм может остаться по умолчанию.")
 
 
+_sync_norms_from_server()
 _load_external_norms()

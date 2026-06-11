@@ -163,11 +163,18 @@ class TabNorms(tk.Frame):
             messagebox.showerror("Ошибка", f"Некорректное значение: {e}")
             return
         try:
-            data.save_norms(new_norms)
+            published = data.save_norms(new_norms)
         except Exception as e:
             messagebox.showerror("Ошибка", f"Не удалось сохранить файл норм: {e}")
             return
-        self.lbl_status.config(text="Нормы сохранены и применены", fg="#27ae60")
+        if published:
+            self.lbl_status.config(
+                text="Нормы сохранены, применены и опубликованы в сетевую папку "
+                     "(разойдутся на все компьютеры)", fg="#27ae60")
+        else:
+            self.lbl_status.config(
+                text="Нормы сохранены локально. ВНИМАНИЕ: сетевая папка недоступна — "
+                     "на другие компьютеры нормы не разошлись", fg="#e67e22")
 
     def _collect(self):
         out = {}
