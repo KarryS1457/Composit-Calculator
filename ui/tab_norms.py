@@ -60,15 +60,30 @@ class TabNorms(tk.Frame):
     def _build_editor(self):
         tk.Label(self, text="РЕДАКТОР НОРМ", font=("Arial", 16, "bold"),
                  fg="#2c3e50").pack(pady=(0, 5))
-        tk.Label(self, text="Измените значения и нажмите «СОХРАНИТЬ». "
-                            "Нормы применяются сразу, без перезапуска.",
-                 font=("Arial", 9), fg="#7f8c8d").pack(pady=(0, 10))
+        tk.Label(self, text="Правки сохраняются в ваш личный файл норм. "
+                            "Ниже выберите, по каким нормам вести расчеты.",
+                 font=("Arial", 9), fg="#7f8c8d").pack(pady=(0, 5))
+
+        # Выбор активного источника норм для расчетов
+        src_box = tk.Frame(self)
+        src_box.pack(pady=(0, 10))
+        tk.Label(src_box, text="Расчеты вести по:", font=("Arial", 10, "bold"),
+                 fg="#2c3e50").pack(side="left", padx=(0, 10))
+        self.var_source = tk.StringVar(value=data.get_active_source())
+        tk.Radiobutton(src_box, text="общим нормам (заводским)",
+                       variable=self.var_source, value=data.SOURCE_SHARED,
+                       font=("Arial", 10),
+                       command=self._switch_source).pack(side="left", padx=5)
+        tk.Radiobutton(src_box, text="моим нормам (этот компьютер)",
+                       variable=self.var_source, value=data.SOURCE_MY,
+                       font=("Arial", 10),
+                       command=self._switch_source).pack(side="left", padx=5)
 
         scroll = ScrollableFrame(self)
         scroll.pack(fill="both", expand=True)
         body = scroll.inner_frame
 
-        self.norms = data.norms_as_dict()
+        self.norms = data.my_norms_as_dict()
         for section, table in self.norms.items():
             self._render_section(body, section, table)
 
@@ -78,14 +93,31 @@ class TabNorms(tk.Frame):
 
         bottom = tk.Frame(self)
         bottom.pack(fill="x", pady=10)
-        tk.Button(bottom, text="СОХРАНИТЬ (на этом компьютере)", bg="#27ae60", fg="white",
+        tk.Button(bottom, text="СОХРАНИТЬ В МОИ НОРМЫ", bg="#27ae60", fg="white",
                   font=("Arial", 12, "bold"),
                   command=self._save).pack(fill="x", ipady=5)
-        tk.Button(bottom, text="ОПУБЛИКОВАТЬ ДЛЯ ВСЕХ КОМПЬЮТЕРОВ", bg="#2980b9", fg="white",
+        tk.Button(bottom, text="ОПУБЛИКОВАТЬ МОИ НОРМЫ ДЛЯ ВСЕХ КОМПЬЮТЕРОВ",
+                  bg="#2980b9", fg="white",
                   font=("Arial", 10, "bold"),
                   command=self._publish).pack(fill="x", ipady=4, pady=(5, 0))
         self.lbl_status = tk.Label(bottom, text="", font=("Arial", 10), wraplength=550, justify="left")
         self.lbl_status.pack(pady=(5, 0))
+
+    def _switch_source(self):
+        src = self.var_source.get()
+        try:
+            data.set_active_source(src)
+        except Exception as e:
+            messagebox.showerror("Ошибка", f"Не удалось переключить нормы: {e}")
+            return
+        if src == data.SOURCE_MY:
+            self.lbl_status.config(
+                text="Расчеты теперь ведутся по ВАШИМ нормам (мои_нормы.json).",
+                fg="#2980b9")
+        else:
+            self.lbl_status.config(
+                text="Расчеты теперь ведутся по ОБЩИМ заводским нормам.",
+                fg="#2980b9")
 
     def _render_section(self, parent, section, table):
         box = tk.LabelFrame(parent, text=section, font=("Arial", 11, "bold"),
@@ -170,16 +202,26 @@ class TabNorms(tk.Frame):
         except Exception as e:
             messagebox.showerror("Ошибка", f"Не удалось сохранить файл норм: {e}")
             return
+        if data.get_active_source() == data.SOURCE_MY:
+            extra = "Они уже применены в расчетах (выбраны «мои нормы»)."
+        else:
+            extra = ("В расчетах сейчас выбраны общие нормы — чтобы считать по "
+                     "своим, переключите «Расчеты вести по» вверху.")
         self.lbl_status.config(
-            text="Нормы сохранены и применены на этом компьютере. "
-                 "Чтобы разослать их на остальные компьютеры, нажмите "
-                 "«ОПУБЛИКОВАТЬ ДЛЯ ВСЕХ КОМПЬЮТЕРОВ».", fg="#27ae60")
+            text=f"Нормы сохранены в ваш личный файл (мои_нормы.json). {extra}",
+            fg="#27ae60")
 
     def _publish(self):
+        import os
+        if not os.path.exists(data._my_norms_file_path()):
+            messagebox.showwarning(
+                "Публикация норм",
+                "Сначала сохраните нормы кнопкой «СОХРАНИТЬ В МОИ НОРМЫ».")
+            return
         if not messagebox.askyesno(
                 "Публикация норм",
-                "Текущие нормы (сохраненные на этом компьютере) будут разосланы "
-                "на ВСЕ компьютеры завода. Продолжить?"):
+                "Ваши личные нормы (мои_нормы.json) станут ОБЩИМИ заводскими "
+                "и будут разосланы на ВСЕ компьютеры. Продолжить?"):
             return
         try:
             ok = data.publish_norms()
