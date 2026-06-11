@@ -1,4 +1,5 @@
 import tkinter as tk
+from core.updater import VERSION
 
 class MainMenu(tk.Frame):
     def __init__(self, parent, presenter):
@@ -55,3 +56,6 @@ class MainMenu(tk.Frame):
             command=self.presenter.show_norms_editor
         )
         self.btn_norms.pack(fill="x", pady=(30, 10))
+
+        tk.Label(self, text=f"Версия {VERSION}", font=("Arial", 8),
+                 fg="#95a5a6").pack(side="bottom", pady=(10, 0))
