@@ -155,12 +155,81 @@ import json as _json
 import os as _os
 import sys as _sys
 
-def _norms_file_path():
+def _base_dir():
     if getattr(_sys, 'frozen', False):
-        base_dir = _os.path.dirname(_sys.executable)
-    else:
-        base_dir = _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__)))
-    return _os.path.join(base_dir, "нормы.json")
+        return _os.path.dirname(_sys.executable)
+    return _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__)))
+
+def _data_dir():
+    """Служебные файлы программы (нормы, настройки) хранятся не рядом с exe,
+    а в скрытой папке профиля пользователя — рядом с программой ничего
+    не появляется."""
+    base = _os.environ.get("APPDATA") or _os.path.join(
+        _os.path.expanduser("~"), ".config")
+    path = _os.path.join(base, "CompositCalculator")
+    try:
+        _os.makedirs(path, exist_ok=True)
+    except OSError:
+        return _base_dir()  # профиль недоступен — запасной вариант
+    return path
+
+def _norms_file_path():
+    """Общие (заводские) нормы — синхронизируются с сетевой папкой."""
+    return _os.path.join(_data_dir(), "нормы.json")
+
+def _my_norms_file_path():
+    """Личные нормы редактора — существуют только на этом компьютере."""
+    return _os.path.join(_data_dir(), "мои_нормы.json")
+
+def _settings_file_path():
+    return _os.path.join(_data_dir(), "настройки_норм.json")
+
+def _migrate_old_files():
+    """Переносит файлы, которые раньше лежали рядом с программой,
+    в папку профиля; рядом с exe они удаляются."""
+    for name in ("нормы.json", "мои_нормы.json", "настройки_норм.json"):
+        old = _os.path.join(_base_dir(), name)
+        new = _os.path.join(_data_dir(), name)
+        if old == new or not _os.path.exists(old):
+            continue
+        try:
+            if not _os.path.exists(new):
+                with open(old, 'rb') as f:
+                    content = f.read()
+                with open(new, 'wb') as f:
+                    f.write(content)
+            # удаляем старый файл только в собранной программе,
+            # чтобы в режиме разработки не трогать файлы проекта
+            if getattr(_sys, 'frozen', False):
+                _os.remove(old)
+        except OSError:
+            pass
+
+# Источники норм для расчетов
+SOURCE_SHARED = "общие"   # заводской файл нормы.json (синхронизируется с сетью)
+SOURCE_MY = "мои"         # личный файл мои_нормы.json (только этот компьютер)
+
+def get_active_source():
+    """Какие нормы сейчас используются в расчетах: 'общие' или 'мои'."""
+    try:
+        with open(_settings_file_path(), encoding='utf-8') as f:
+            src = _json.load(f).get("активные_нормы", SOURCE_SHARED)
+        return src if src in (SOURCE_SHARED, SOURCE_MY) else SOURCE_SHARED
+    except Exception:
+        return SOURCE_SHARED
+
+def set_active_source(source):
+    """Переключает, по каким нормам ведутся расчеты, и сразу применяет их."""
+    if source not in (SOURCE_SHARED, SOURCE_MY):
+        raise ValueError(f"Неизвестный источник норм: {source}")
+    with open(_settings_file_path(), 'w', encoding='utf-8') as f:
+        _json.dump({"активные_нормы": source}, f, ensure_ascii=False, indent=2)
+    _load_external_norms()
+
+def _active_norms_path():
+    if get_active_source() == SOURCE_MY and _os.path.exists(_my_norms_file_path()):
+        return _my_norms_file_path()
+    return _norms_file_path()
 
 def _to_float(val):
     try:
@@ -222,34 +291,51 @@ def norms_as_dict():
         "ПРИПУСК_НА_ДИАМЕТР": admission,
     }
 
+def load_norms_file(path):
+    """Читает файл норм и возвращает его секции (без _СПРАВКА), либо None."""
+    try:
+        with open(path, encoding='utf-8') as f:
+            norms = _json.load(f)
+        return {k: v for k, v in norms.items() if not k.startswith("_")}
+    except Exception:
+        return None
+
+def my_norms_as_dict():
+    """Личные нормы для редактора: содержимое мои_нормы.json, а если его
+    еще нет — копия текущих общих норм (как стартовая точка для правок)."""
+    return load_norms_file(_my_norms_file_path()) or norms_as_dict()
+
 def save_norms(norms):
-    """Сохраняет нормы только локально (на этом компьютере) и сразу
-    применяет их в программе. Чтобы разослать на все компьютеры —
-    отдельно вызвать publish_norms()."""
+    """Сохраняет нормы в ЛИЧНЫЙ файл (мои_нормы.json) на этом компьютере.
+    Общий заводской файл не трогается. Если в расчетах выбраны 'мои' нормы —
+    они применяются сразу. Разослать на все компьютеры — publish_norms()."""
     payload = {
         "_СПРАВКА": {
-            "что это": "Файл норм для программы расчета. Правьте значения и перезапустите программу.",
+            "что это": "Личный файл норм редактора. Используется в расчетах, если в редакторе выбраны 'мои' нормы.",
             **NORMS_HELP,
-            "ВАЖНО": "Если файл удалить или испортить — программа продолжит работать на встроенных нормах по умолчанию.",
+            "ВАЖНО": "Если файл удалить или испортить — программа продолжит работать на общих нормах.",
         }
     }
     payload.update(norms)
     text = _json.dumps(payload, ensure_ascii=False, indent=2)
-    with open(_norms_file_path(), 'w', encoding='utf-8') as f:
+    with open(_my_norms_file_path(), 'w', encoding='utf-8') as f:
         f.write(text)
     _load_external_norms()
 
 def publish_norms():
-    """Копирует текущий локальный нормы.json в сетевую папку обновлений —
-    оттуда он разойдется на все компьютеры (они подтягивают его при старте).
-    Возвращает True при успехе."""
+    """Копирует ЛИЧНЫЙ файл норм в сетевую папку обновлений — оттуда он
+    разойдется на все компьютеры как общие нормы (они подтягивают его при
+    старте). Возвращает True при успехе."""
     try:
         from core.updater import UPDATE_DIR
-        local = _norms_file_path()
-        with open(local, 'rb') as f:
+        with open(_my_norms_file_path(), 'rb') as f:
             text = f.read()
         with open(_os.path.join(UPDATE_DIR, "нормы.json"), 'wb') as f:
             f.write(text)
+        # локальный общий файл тоже обновляем сразу, не дожидаясь перезапуска
+        with open(_norms_file_path(), 'wb') as f:
+            f.write(text)
+        _load_external_norms()
         return True
     except Exception:
         return False
@@ -277,7 +363,7 @@ def _sync_norms_from_server():
         pass  # нет сети/прав — работаем на локальных нормах
 
 def _load_external_norms():
-    path = _norms_file_path()
+    path = _active_norms_path()
     if not _os.path.exists(path):
         return
     try:
@@ -339,5 +425,6 @@ def _load_external_norms():
               f"Часть норм может остаться по умолчанию.")
 
 
+_migrate_old_files()
 _sync_norms_from_server()
 _load_external_norms()

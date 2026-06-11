@@ -4,14 +4,16 @@ import os
 import sys
 
 def setup_logger():
-    # Определяем папку для логов (рядом с исполняемым файлом)
     if getattr(sys, 'frozen', False):
-        # Если запущено как скомпилированный .exe
-        base_dir = os.path.dirname(sys.executable)
+        # В собранной программе логи пишем в профиль пользователя,
+        # чтобы рядом с exe не появлялось никаких файлов
+        base_dir = os.path.join(
+            os.environ.get("APPDATA") or os.path.join(os.path.expanduser("~"), ".config"),
+            "CompositCalculator")
     else:
         # Если запущено как python-скрипт
         base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        
+
     log_dir = os.path.join(base_dir, "logs")
     
     if not os.path.exists(log_dir):
