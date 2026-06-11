@@ -162,6 +162,12 @@ def _norms_file_path():
         base_dir = _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__)))
     return _os.path.join(base_dir, "нормы.json")
 
+def _to_float(val):
+    try:
+        return float(val or 0)
+    except (ValueError, TypeError):
+        return 0.0
+
 def _to_num_keys(d):
     """Ключи JSON всегда строки — возвращаем числовые ключи для таблиц норм."""
     out = {}
@@ -186,29 +192,56 @@ def _load_external_norms():
         return
 
     g = globals()
-    plain = ("FEEDRATE_DATA", "GROOVE_INSERT_WIDTH",
-             "WELD_DATA", "CHAMFER_SETUP_TIME")
-    numeric_keys = ("AWC_DATA", "ADMISSION_DATA")
-    scalars = ("GROOVE_FEED", "CHAMFER_COMPLEXITY_K", "AWC_S")
+    feed_keys = ["глубина_продольная_мм", "глубина_поперечная_мм",
+                  "подача_продольная_мм_об", "подача_поперечная_мм_об",
+                  "скорость_фасок_мм_мин"]
     try:
-        for name in plain:
-            if isinstance(norms.get(name), dict) and norms[name]:
-                g[name] = norms[name]
-        for name in numeric_keys:
-            if isinstance(norms.get(name), dict) and norms[name]:
-                g[name] = _to_num_keys(norms[name])
-        for name in scalars:
-            if norms.get(name) is not None:
-                g[name] = norms[name]
-        # RANGES_DATA: в JSON диапазоны — списки [мин, макс], в коде — кортежи
-        if isinstance(norms.get("RANGES_DATA"), dict) and norms["RANGES_DATA"]:
-            g["RANGES_DATA"] = {k: tuple(v) for k, v in norms["RANGES_DATA"].items()}
-        # TURNING_DATA: пары списков [диаметры, обороты]
-        if isinstance(norms.get("TURNING_DATA"), dict) and norms["TURNING_DATA"]:
-            g["TURNING_DATA"] = {k: (list(v[0]), list(v[1]))
-                                 for k, v in norms["TURNING_DATA"].items()}
+        # ОБОРОТЫ_ШПИНДЕЛЯ: {станок: {диаметр: обороты}} -> {станок: ([диаметры], [обороты])}
+        if isinstance(norms.get("ОБОРОТЫ_ШПИНДЕЛЯ"), dict) and norms["ОБОРОТЫ_ШПИНДЕЛЯ"]:
+            turning = {}
+            for machine, table in norms["ОБОРОТЫ_ШПИНДЕЛЯ"].items():
+                pairs = sorted(((float(d), r) for d, r in table.items()), key=lambda x: x[0])
+                diams = [int(d) if d == int(d) else d for d, _ in pairs]
+                rpms = [r for _, r in pairs]
+                turning[machine] = (diams, rpms)
+            g["TURNING_DATA"] = turning
+
+        # ДИАПАЗОНЫ_ДИАМЕТРОВ: {станок: [мин, макс]} -> {станок: (мин, макс)}
+        if isinstance(norms.get("ДИАПАЗОНЫ_ДИАМЕТРОВ"), dict) and norms["ДИАПАЗОНЫ_ДИАМЕТРОВ"]:
+            g["RANGES_DATA"] = {k: tuple(v) for k, v in norms["ДИАПАЗОНЫ_ДИАМЕТРОВ"].items()}
+
+        # РЕЖИМЫ_РЕЗАНИЯ: {станок: {именованные ключи}} -> {станок: [позиционный список]}
+        if isinstance(norms.get("РЕЖИМЫ_РЕЗАНИЯ"), dict) and norms["РЕЖИМЫ_РЕЗАНИЯ"]:
+            feed = {}
+            for machine, params in norms["РЕЖИМЫ_РЕЗАНИЯ"].items():
+                feed[machine] = [_to_float(params.get(key, 0)) for key in feed_keys]
+            g["FEEDRATE_DATA"] = feed
+
+        if isinstance(norms.get("ШИРИНА_КАНАВОЧНОГО_РЕЗЦА"), dict) and norms["ШИРИНА_КАНАВОЧНОГО_РЕЗЦА"]:
+            g["GROOVE_INSERT_WIDTH"] = norms["ШИРИНА_КАНАВОЧНОГО_РЕЗЦА"]
+
+        if isinstance(norms.get("ПОДАЧА_НА_КАНАВУ"), dict) and norms["ПОДАЧА_НА_КАНАВУ"]:
+            g["GROOVE_FEED"] = norms["ПОДАЧА_НА_КАНАВУ"]
+
+        # КОЭФФИЦИЕНТ_ВСПОМОГАТЕЛЬНЫХ_РАБОТ: {D1: {S: коэфф}} -> AWC_S + AWC_DATA{D1: [...]}
+        if isinstance(norms.get("КОЭФФИЦИЕНТ_ВСПОМОГАТЕЛЬНЫХ_РАБОТ"), dict) and norms["КОЭФФИЦИЕНТ_ВСПОМОГАТЕЛЬНЫХ_РАБОТ"]:
+            awc_raw = norms["КОЭФФИЦИЕНТ_ВСПОМОГАТЕЛЬНЫХ_РАБОТ"]
+            first_table = next(iter(awc_raw.values()))
+            awc_s = sorted(float(s) for s in first_table.keys())
+            g["AWC_S"] = [int(s) if s == int(s) else s for s in awc_s]
+            awc_data = {}
+            for d1, table in awc_raw.items():
+                d1_num = float(d1)
+                d1_key = int(d1_num) if d1_num == int(d1_num) else d1_num
+                awc_data[d1_key] = [table[s_key] for s_key in table]
+            g["AWC_DATA"] = awc_data
+
+        # ПРИПУСК_НА_ДИАМЕТР: {S: припуск} -> ADMISSION_DATA{S: припуск}
+        if isinstance(norms.get("ПРИПУСК_НА_ДИАМЕТР"), dict) and norms["ПРИПУСК_НА_ДИАМЕТР"]:
+            g["ADMISSION_DATA"] = _to_num_keys(norms["ПРИПУСК_НА_ДИАМЕТР"])
     except Exception as e:
         print(f"ВНИМАНИЕ: ошибка применения норм из '{path}' ({e}). "
               f"Часть норм может остаться по умолчанию.")
+
 
 _load_external_norms()
