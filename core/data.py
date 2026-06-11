@@ -154,6 +154,10 @@ SHEET_PRODUCTS = [
 import json as _json
 import os as _os
 import sys as _sys
+import base64 as _base64
+import hashlib as _hashlib
+import hmac as _hmac
+import zlib as _zlib
 
 def _base_dir():
     if getattr(_sys, 'frozen', False):
@@ -291,14 +295,76 @@ def norms_as_dict():
         "ПРИПУСК_НА_ДИАМЕТР": admission,
     }
 
-def load_norms_file(path):
-    """Читает файл норм и возвращает его секции (без _СПРАВКА), либо None."""
+# =====================================================================
+# ЗАЩИЩЕННЫЙ ФОРМАТ ФАЙЛОВ НОРМ
+# Нормы можно менять только через редактор внутри программы:
+# содержимое файла кодируется и подписывается контрольной подписью.
+# Файл, измененный вручную (Блокнотом и т.п.), не пройдет проверку
+# подписи и будет проигнорирован.
+# =====================================================================
+_NORMS_KEY = b"composit-calculator-norms-protection-v1"
+_NORMS_FORMAT = "composit-norms-1"
+
+def _pack_norms(norms):
+    """Нормы -> защищенные байты файла (сжатие + base64 + HMAC-подпись)."""
+    raw = _json.dumps(norms, ensure_ascii=False).encode('utf-8')
+    blob = _base64.b64encode(_zlib.compress(raw)).decode('ascii')
+    sig = _hmac.new(_NORMS_KEY, blob.encode('ascii'), _hashlib.sha256).hexdigest()
+    wrapper = {
+        "формат": _NORMS_FORMAT,
+        "ВНИМАНИЕ": "Файл создан программой расчета. Не редактируйте его вручную — "
+                    "изменения не пройдут проверку подписи и файл будет отклонен. "
+                    "Нормы меняются только в редакторе внутри программы.",
+        "данные": blob,
+        "подпись": sig,
+    }
+    return _json.dumps(wrapper, ensure_ascii=False, indent=2).encode('utf-8')
+
+def _unpack_norms(data):
+    """Байты файла -> нормы. None, если файл изменен вне программы
+    (подпись не сошлась) или испорчен."""
     try:
-        with open(path, encoding='utf-8') as f:
-            norms = _json.load(f)
-        return {k: v for k, v in norms.items() if not k.startswith("_")}
+        wrapper = _json.loads(data.decode('utf-8'))
+        if wrapper.get("формат") != _NORMS_FORMAT:
+            return None
+        blob = wrapper["данные"].encode('ascii')
+        expected = _hmac.new(_NORMS_KEY, blob, _hashlib.sha256).hexdigest()
+        if not _hmac.compare_digest(expected, str(wrapper.get("подпись", ""))):
+            return None
+        return _json.loads(_zlib.decompress(_base64.b64decode(blob)).decode('utf-8'))
     except Exception:
         return None
+
+def _read_norms_file(path):
+    """Читает файл норм (защищенный или старый открытый формат).
+    Возвращает словарь секций или None. Старый открытый файл при чтении
+    сразу пересохраняется в защищенном виде."""
+    try:
+        with open(path, 'rb') as f:
+            data = f.read()
+    except OSError:
+        return None
+    norms = _unpack_norms(data)
+    if norms is not None:
+        return {k: v for k, v in norms.items() if not k.startswith("_")}
+    # старый формат (обычный JSON) — принимаем один раз и защищаем
+    try:
+        legacy = _json.loads(data.decode('utf-8'))
+        if not isinstance(legacy, dict) or "формат" in legacy:
+            return None
+        norms = {k: v for k, v in legacy.items() if not k.startswith("_")}
+        try:
+            with open(path, 'wb') as f:
+                f.write(_pack_norms(norms))
+        except OSError:
+            pass
+        return norms
+    except Exception:
+        return None
+
+def load_norms_file(path):
+    """Читает файл норм и возвращает его секции (без _СПРАВКА), либо None."""
+    return _read_norms_file(path)
 
 def my_norms_as_dict():
     """Личные нормы для редактора: содержимое мои_нормы.json, а если его
@@ -309,17 +375,8 @@ def save_norms(norms):
     """Сохраняет нормы в ЛИЧНЫЙ файл (мои_нормы.json) на этом компьютере.
     Общий заводской файл не трогается. Если в расчетах выбраны 'мои' нормы —
     они применяются сразу. Разослать на все компьютеры — publish_norms()."""
-    payload = {
-        "_СПРАВКА": {
-            "что это": "Личный файл норм редактора. Используется в расчетах, если в редакторе выбраны 'мои' нормы.",
-            **NORMS_HELP,
-            "ВАЖНО": "Если файл удалить или испортить — программа продолжит работать на общих нормах.",
-        }
-    }
-    payload.update(norms)
-    text = _json.dumps(payload, ensure_ascii=False, indent=2)
-    with open(_my_norms_file_path(), 'w', encoding='utf-8') as f:
-        f.write(text)
+    with open(_my_norms_file_path(), 'wb') as f:
+        f.write(_pack_norms(norms))
     _load_external_norms()
 
 def publish_norms():
@@ -351,7 +408,10 @@ def _sync_norms_from_server():
             return
         with open(remote, 'rb') as f:
             remote_bytes = f.read()
-        _json.loads(remote_bytes.decode('utf-8'))  # битый файл не копируем
+        # принимаем только файл с верной подписью: битый или измененный
+        # вручную (вне программы) файл не копируем
+        if _unpack_norms(remote_bytes) is None:
+            return
         local = _norms_file_path()
         if _os.path.exists(local):
             with open(local, 'rb') as f:
@@ -366,11 +426,9 @@ def _load_external_norms():
     path = _active_norms_path()
     if not _os.path.exists(path):
         return
-    try:
-        with open(path, encoding='utf-8') as f:
-            norms = _json.load(f)
-    except Exception as e:
-        print(f"ВНИМАНИЕ: файл норм '{path}' не прочитан ({e}). "
+    norms = _read_norms_file(path)
+    if norms is None:
+        print(f"ВНИМАНИЕ: файл норм '{path}' испорчен или изменен вне программы. "
               f"Используются нормы по умолчанию.")
         return
 
