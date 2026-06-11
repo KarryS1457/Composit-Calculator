@@ -160,16 +160,50 @@ def _base_dir():
         return _os.path.dirname(_sys.executable)
     return _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__)))
 
+def _data_dir():
+    """Служебные файлы программы (нормы, настройки) хранятся не рядом с exe,
+    а в скрытой папке профиля пользователя — рядом с программой ничего
+    не появляется."""
+    base = _os.environ.get("APPDATA") or _os.path.join(
+        _os.path.expanduser("~"), ".config")
+    path = _os.path.join(base, "CompositCalculator")
+    try:
+        _os.makedirs(path, exist_ok=True)
+    except OSError:
+        return _base_dir()  # профиль недоступен — запасной вариант
+    return path
+
 def _norms_file_path():
     """Общие (заводские) нормы — синхронизируются с сетевой папкой."""
-    return _os.path.join(_base_dir(), "нормы.json")
+    return _os.path.join(_data_dir(), "нормы.json")
 
 def _my_norms_file_path():
     """Личные нормы редактора — существуют только на этом компьютере."""
-    return _os.path.join(_base_dir(), "мои_нормы.json")
+    return _os.path.join(_data_dir(), "мои_нормы.json")
 
 def _settings_file_path():
-    return _os.path.join(_base_dir(), "настройки_норм.json")
+    return _os.path.join(_data_dir(), "настройки_норм.json")
+
+def _migrate_old_files():
+    """Переносит файлы, которые раньше лежали рядом с программой,
+    в папку профиля; рядом с exe они удаляются."""
+    for name in ("нормы.json", "мои_нормы.json", "настройки_норм.json"):
+        old = _os.path.join(_base_dir(), name)
+        new = _os.path.join(_data_dir(), name)
+        if old == new or not _os.path.exists(old):
+            continue
+        try:
+            if not _os.path.exists(new):
+                with open(old, 'rb') as f:
+                    content = f.read()
+                with open(new, 'wb') as f:
+                    f.write(content)
+            # удаляем старый файл только в собранной программе,
+            # чтобы в режиме разработки не трогать файлы проекта
+            if getattr(_sys, 'frozen', False):
+                _os.remove(old)
+        except OSError:
+            pass
 
 # Источники норм для расчетов
 SOURCE_SHARED = "общие"   # заводской файл нормы.json (синхронизируется с сетью)
@@ -391,5 +425,6 @@ def _load_external_norms():
               f"Часть норм может остаться по умолчанию.")
 
 
+_migrate_old_files()
 _sync_norms_from_server()
 _load_external_norms()
