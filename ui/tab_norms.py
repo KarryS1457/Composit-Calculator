@@ -85,8 +85,8 @@ class TabNorms(tk.Frame):
         notebook = ttk.Notebook(self)
         notebook.pack(fill="both", expand=True)
 
-        turning_scroll = ScrollableFrame(notebook)
-        weld_scroll = ScrollableFrame(notebook)
+        turning_scroll = ScrollableFrame(notebook, horizontal=True)
+        weld_scroll = ScrollableFrame(notebook, horizontal=True)
         notebook.add(turning_scroll, text="ТОКАРКА")
         notebook.add(weld_scroll, text="СВАРКА")
 
