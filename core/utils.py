@@ -13,14 +13,20 @@ def resource_path(relative_path):
     return os.path.join(base_path, relative_path)
 
 class ScrollableFrame(tk.Frame):
-    """Универсальный фрейм с вертикальной прокруткой"""
+    """Универсальный фрейм с вертикальной прокруткой.
+
+    horizontal=True добавляет ещё и горизонтальную прокрутку. В этом режиме
+    внутренний фрейм НЕ растягивается по ширине холста (иначе содержимое
+    шире окна было бы обрезано), поэтому широкие таблицы можно проматывать
+    вбок — ползунком снизу или Shift+колесо мыши."""
     # ИСПРАВЛЕНО: Добавлены двойные подчеркивания для __init__
-    def __init__(self, container, *args, **kwargs):
+    def __init__(self, container, *args, horizontal=False, **kwargs):
         super().__init__(container, *args, **kwargs)
+        self.horizontal = horizontal
 
         # 1. Создаем Canvas (он умеет прокручиваться)
         self.canvas = tk.Canvas(self, borderwidth=0, highlightthickness=0)
-       
+
         # 2. Создаем ползунок и привязываем его к Canvas
         self.scrollbar = tk.Scrollbar(self, orient="vertical", command=self.canvas.yview)
         self.canvas.configure(yscrollcommand=self.scrollbar.set)
@@ -32,8 +38,12 @@ class ScrollableFrame(tk.Frame):
         self.canvas_window = self.canvas.create_window((0, 0), window=self.inner_frame, anchor="nw")
 
         # 5. Размещаем Canvas и Scrollbar
-        self.canvas.pack(side="left", fill="both", expand=True)
+        if self.horizontal:
+            self.hscrollbar = tk.Scrollbar(self, orient="horizontal", command=self.canvas.xview)
+            self.canvas.configure(xscrollcommand=self.hscrollbar.set)
+            self.hscrollbar.pack(side="bottom", fill="x")
         self.scrollbar.pack(side="right", fill="y")
+        self.canvas.pack(side="left", fill="both", expand=True)
 
         # 6. Обновляем область прокрутки при изменении размера внутреннего фрейма
         self.inner_frame.bind(
@@ -42,7 +52,10 @@ class ScrollableFrame(tk.Frame):
         )
 
         # 7. Заставляем внутренний фрейм растягиваться по ширине Canvas
-        self.canvas.bind("<Configure>", self._on_canvas_configure)
+        #    (только без горизонтальной прокрутки — иначе широкое содержимое
+        #    зажималось бы по ширине окна и прокручивать вбок было бы нечего)
+        if not self.horizontal:
+            self.canvas.bind("<Configure>", self._on_canvas_configure)
 
         # 8. Биндим прокрутку колесиком мыши на canvas и на все дочерние
         # виджеты (поля ввода, метки и т.д.), т.к. события Enter/Leave
@@ -61,6 +74,11 @@ class ScrollableFrame(tk.Frame):
         widget.bind("<MouseWheel>", self._on_mousewheel, add="+")
         widget.bind("<Button-4>", self._on_mousewheel, add="+")
         widget.bind("<Button-5>", self._on_mousewheel, add="+")
+        if self.horizontal:
+            # Shift+колесо — горизонтальная прокрутка
+            widget.bind("<Shift-MouseWheel>", self._on_shift_mousewheel, add="+")
+            widget.bind("<Shift-Button-4>", self._on_shift_mousewheel, add="+")
+            widget.bind("<Shift-Button-5>", self._on_shift_mousewheel, add="+")
         if recursive:
             for child in widget.winfo_children():
                 self.bind_mouse_scroll(child, recursive=True)
@@ -71,3 +89,10 @@ class ScrollableFrame(tk.Frame):
             self.canvas.yview_scroll(-1, "units")
         elif event.num == 5 or event.delta < 0: # Вниз
             self.canvas.yview_scroll(1, "units")
+
+    def _on_shift_mousewheel(self, event):
+        # Горизонтальная прокрутка (Shift + колесо)
+        if event.num == 4 or event.delta > 0:  # Влево
+            self.canvas.xview_scroll(-1, "units")
+        elif event.num == 5 or event.delta < 0:  # Вправо
+            self.canvas.xview_scroll(1, "units")
