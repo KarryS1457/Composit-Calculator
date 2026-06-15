@@ -226,7 +226,7 @@ class TabNorms(tk.Frame):
                      width=14).grid(row=0, column=c, padx=1)
         for r, inner in enumerate(inner_keys, start=1):
             tk.Label(grid, text=inner, font=("Arial", 10), anchor="w",
-                     width=22).grid(row=r, column=0, sticky="w", pady=1)
+                     width=6).grid(row=r, column=0, sticky="w", padx=(0, 4), pady=1)
             for c, outer in enumerate(outer_keys, start=1):
                 val = table[outer].get(inner, 0)
                 self._add_entry(grid, r, c, (section, outer, inner), val, width=12)
