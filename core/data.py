@@ -380,8 +380,17 @@ def load_norms_file(path):
 
 def my_norms_as_dict():
     """Личные нормы для редактора: содержимое мои_нормы.json, а если его
-    еще нет — копия текущих общих норм (как стартовая точка для правок)."""
-    return load_norms_file(_my_norms_file_path()) or norms_as_dict()
+    еще нет — копия текущих общих норм (как стартовая точка для правок).
+    Секции, которых нет в сохраненном файле (например, появившиеся в новой
+    версии программы — НОРМЫ_СВАРКИ), дополняются из общих норм, чтобы
+    соответствующая вкладка редактора не оказалась пустой."""
+    loaded = load_norms_file(_my_norms_file_path())
+    defaults = norms_as_dict()
+    if not loaded:
+        return defaults
+    for section, table in defaults.items():
+        loaded.setdefault(section, table)
+    return loaded
 
 def save_norms(norms):
     """Сохраняет нормы в ЛИЧНЫЙ файл (мои_нормы.json) на этом компьютере.
