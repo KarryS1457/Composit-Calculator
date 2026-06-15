@@ -269,6 +269,10 @@ NORMS_HELP = {
     "ПОДАЧА_НА_КАНАВУ": "Подача при точении канавы по станкам (мм/об); 0 = не задана.",
     "КОЭФФИЦИЕНТ_ВСПОМОГАТЕЛЬНЫХ_РАБОТ": "Ключ верхнего уровня — диаметр заготовки D1 (мм), вложенный ключ — толщина листа S от (мм), значение — коэффициент.",
     "ПРИПУСК_НА_ДИАМЕТР": "Припуск на диаметр заготовки (мм): ключ — толщина листа от (мм), значение — припуск (мм).",
+    "НОРМЫ_СВАРКИ": "По типам шва (ГОСТ): толщина S (мм) и норма времени сварки (мин на 1м шва) "
+                    "для каждой точки таблицы. Списки должны быть одной длины и идти по возрастанию.",
+    "ФАСКИ_СВАРКА": "Скорость снятия фасок (мм/мин) в зависимости от толщины S (мм). "
+                    "Каждый диапазон действует до своей 'макс. толщины'.",
 }
 
 def norms_as_dict():
@@ -285,6 +289,10 @@ def norms_as_dict():
         awc[str(d1)] = {str(s): v for s, v in zip(AWC_S, vals)}
     admission = {str(k): (v[0] if isinstance(v, list) else v)
                  for k, v in ADMISSION_DATA.items()}
+    weld = {gost: {"толщина_мм": list(th), "норма_мин_м": list(tm)}
+            for gost, (th, tm) in WELD_DATA.items()}
+    chamfer = [{"макс_толщина_мм": cfg["max_s"], "толщина_мм": list(cfg["x"]),
+                "норма_мм_мин": list(cfg["y"])} for cfg in CHAMFER_DATA]
     return {
         "ОБОРОТЫ_ШПИНДЕЛЯ": turning,
         "ДИАПАЗОНЫ_ДИАМЕТРОВ": {k: list(v) for k, v in RANGES_DATA.items()},
@@ -293,6 +301,8 @@ def norms_as_dict():
         "ПОДАЧА_НА_КАНАВУ": dict(GROOVE_FEED),
         "КОЭФФИЦИЕНТ_ВСПОМОГАТЕЛЬНЫХ_РАБОТ": awc,
         "ПРИПУСК_НА_ДИАМЕТР": admission,
+        "НОРМЫ_СВАРКИ": weld,
+        "ФАСКИ_СВАРКА": chamfer,
     }
 
 # =====================================================================
@@ -478,6 +488,26 @@ def _load_external_norms():
         # ПРИПУСК_НА_ДИАМЕТР: {S: припуск} -> ADMISSION_DATA{S: припуск}
         if isinstance(norms.get("ПРИПУСК_НА_ДИАМЕТР"), dict) and norms["ПРИПУСК_НА_ДИАМЕТР"]:
             g["ADMISSION_DATA"] = _to_num_keys(norms["ПРИПУСК_НА_ДИАМЕТР"])
+
+        # НОРМЫ_СВАРКИ: {ГОСТ: {толщина_мм: [...], норма_мин_м: [...]}} -> WELD_DATA{ГОСТ: ([...],[...])}
+        if isinstance(norms.get("НОРМЫ_СВАРКИ"), dict) and norms["НОРМЫ_СВАРКИ"]:
+            weld = {}
+            for gost, table in norms["НОРМЫ_СВАРКИ"].items():
+                th = [_to_float(x) for x in table.get("толщина_мм", [])]
+                tm = [_to_float(x) for x in table.get("норма_мин_м", [])]
+                weld[gost] = (th, tm)
+            g["WELD_DATA"] = weld
+
+        # ФАСКИ_СВАРКА: [{макс_толщина_мм, толщина_мм:[...], норма_мм_мин:[...]}] -> CHAMFER_DATA
+        if isinstance(norms.get("ФАСКИ_СВАРКА"), list) and norms["ФАСКИ_СВАРКА"]:
+            chamfer = []
+            for cfg in norms["ФАСКИ_СВАРКА"]:
+                chamfer.append({
+                    "max_s": _to_float(cfg.get("макс_толщина_мм", 0)),
+                    "x": [_to_float(x) for x in cfg.get("толщина_мм", [])],
+                    "y": [_to_float(x) for x in cfg.get("норма_мм_мин", [])],
+                })
+            g["CHAMFER_DATA"] = chamfer
     except Exception as e:
         print(f"ВНИМАНИЕ: ошибка применения норм из '{path}' ({e}). "
               f"Часть норм может остаться по умолчанию.")
