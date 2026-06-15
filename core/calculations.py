@@ -213,19 +213,6 @@ def calculate_lathe_time(item_type, p, m_info=None, force_machine=None):
         passes_t = max(2, math.ceil(radial_depth / siem))
         return (abs(length) * passes_t) / speed_long
 
-    def get_recess_time(d_outer, d_inner, depth, halve_depth=True):
-        """Проточка/расточка уступа по логике Excel (B105/B106/B112):
-        путь прохода = (d_outer - d_inner)/2, число проходов по глубине (siem поперечный),
-        скорость = подача поперечная × обороты по среднему диаметру."""
-        if depth <= 0 or abs(d_outer - d_inner) < 0.01: return 0
-        basis = (depth / 2) if halve_depth else depth
-        passes = math.ceil(basis / siem_transverse)
-        if passes <= 1: passes = 2
-        rpm_r = get_rpm_for_diam((d_outer + d_inner) / 2)
-        speed_r = feed_face * rpm_r
-        if speed_r <= 0: return 0
-        return (abs(d_outer - d_inner) / 2 * passes) / speed_r
-
     def get_chamfer_time(chamfers, angles=None):
         """chamfers: list of chamfer sizes (mm). angles: list of angles (same units as Excel cell,
         treated as radians directly — matches Excel COS(angle) behaviour). Default angle=0 (cos=1)."""
