@@ -157,7 +157,7 @@ class shaft(tk.Frame):
     def run_calculation(self):
         try:
             payload = {
-                "D1": float(self.ent_D1.get() or 0),
+                "Dt": float(self.ent_Dt.get() or 0),
                 "t": float(self.ent_t.get() or 0),
                 "Dc1": float(self.ent_Dc1.get() or 0),
                 "c1": float(self.ent_c1.get() or 0),
