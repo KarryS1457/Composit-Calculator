@@ -1,8 +1,11 @@
 import tkinter as tk
-from tkinter import messagebox
+from tkinter import messagebox, ttk
 
 import core.data as data
 from core.utils import ScrollableFrame
+
+# Разбивка секций норм по вкладкам редактора
+WELD_SECTIONS = ("НОРМЫ_СВАРКИ", "ФАСКИ_СВАРКА")
 
 
 class TabNorms(tk.Frame):
@@ -79,17 +82,23 @@ class TabNorms(tk.Frame):
                        font=("Arial", 10),
                        command=self._switch_source).pack(side="left", padx=5)
 
-        scroll = ScrollableFrame(self)
-        scroll.pack(fill="both", expand=True)
-        body = scroll.inner_frame
+        notebook = ttk.Notebook(self)
+        notebook.pack(fill="both", expand=True)
+
+        turning_scroll = ScrollableFrame(notebook)
+        weld_scroll = ScrollableFrame(notebook)
+        notebook.add(turning_scroll, text="ТОКАРКА")
+        notebook.add(weld_scroll, text="СВАРКА")
 
         self.norms = data.my_norms_as_dict()
         for section, table in self.norms.items():
-            self._render_section(body, section, table)
+            target = weld_scroll if section in WELD_SECTIONS else turning_scroll
+            self._render_section(target.inner_frame, section, table)
 
         # Привязываем прокрутку к созданным полям (они появились после
         # конструктора ScrollableFrame)
-        scroll.bind_mouse_scroll(body, recursive=True)
+        turning_scroll.bind_mouse_scroll(turning_scroll.inner_frame, recursive=True)
+        weld_scroll.bind_mouse_scroll(weld_scroll.inner_frame, recursive=True)
 
         bottom = tk.Frame(self)
         bottom.pack(fill="x", pady=10)
@@ -129,6 +138,13 @@ class TabNorms(tk.Frame):
             tk.Label(box, text=help_text, font=("Arial", 8), fg="#7f8c8d",
                      wraplength=550, justify="left").pack(anchor="w", pady=(0, 8))
 
+        if section == "НОРМЫ_СВАРКИ":
+            self._render_weld_norms(box, section, table)
+            return
+        if section == "ФАСКИ_СВАРКА":
+            self._render_weld_chamfer(box, section, table)
+            return
+
         grid = tk.Frame(box)
         grid.pack(anchor="w")
 
@@ -139,6 +155,47 @@ class TabNorms(tk.Frame):
             self._render_ranges(grid, section, table)
         else:
             self._render_flat(grid, section, table)
+
+    def _render_weld_norms(self, parent, section, table):
+        """Нормы сварки: для каждого ГОСТа — две строки (S, мм / норма, мин/м)."""
+        for gost, axes in table.items():
+            box = tk.LabelFrame(parent, text=f"Шов {gost}", font=("Arial", 10, "bold"),
+                                 fg="#2c3e50", padx=8, pady=6)
+            box.pack(fill="x", pady=4, anchor="w")
+
+            th = axes.get("толщина_мм", [])
+            tm = axes.get("норма_мин_м", [])
+            tk.Label(box, text="S, мм:", font=("Arial", 9), anchor="w",
+                     width=14).grid(row=0, column=0, sticky="w", pady=1)
+            tk.Label(box, text="норма, мин/м:", font=("Arial", 9), anchor="w",
+                     width=14).grid(row=1, column=0, sticky="w", pady=1)
+            for i, v in enumerate(th):
+                self._add_entry(box, 0, i + 1, (section, gost, "толщина_мм", i), v, width=7)
+            for i, v in enumerate(tm):
+                self._add_entry(box, 1, i + 1, (section, gost, "норма_мин_м", i), v, width=7)
+
+    def _render_weld_chamfer(self, parent, section, table):
+        """Фаски сварки: для каждого диапазона — макс. толщина и две строки (S, мм / мм/мин)."""
+        for idx, cfg in enumerate(table):
+            box = tk.LabelFrame(parent, text=f"Диапазон №{idx + 1}", font=("Arial", 10, "bold"),
+                                 fg="#2c3e50", padx=8, pady=6)
+            box.pack(fill="x", pady=4, anchor="w")
+
+            tk.Label(box, text="макс. S, мм:", font=("Arial", 9), anchor="w",
+                     width=14).grid(row=0, column=0, sticky="w", pady=1)
+            self._add_entry(box, 0, 1, (section, idx, "макс_толщина_мм", None),
+                            cfg.get("макс_толщина_мм", 0), width=7)
+
+            x = cfg.get("толщина_мм", [])
+            y = cfg.get("норма_мм_мин", [])
+            tk.Label(box, text="S, мм:", font=("Arial", 9), anchor="w",
+                     width=14).grid(row=1, column=0, sticky="w", pady=1)
+            tk.Label(box, text="норма, мм/мин:", font=("Arial", 9), anchor="w",
+                     width=14).grid(row=2, column=0, sticky="w", pady=1)
+            for i, v in enumerate(x):
+                self._add_entry(box, 1, i + 1, (section, idx, "толщина_мм", i), v, width=7)
+            for i, v in enumerate(y):
+                self._add_entry(box, 2, i + 1, (section, idx, "норма_мм_мин", i), v, width=7)
 
     def _render_flat(self, grid, section, table):
         """Плоская таблица: ключ -> значение (одна строка полей на ключ)."""
@@ -240,6 +297,29 @@ class TabNorms(tk.Frame):
     def _collect(self):
         out = {}
         for section, table in self.norms.items():
+            if section == "НОРМЫ_СВАРКИ":
+                out[section] = {
+                    gost: {
+                        "толщина_мм": [self._parse(self.entries[(section, gost, "толщина_мм", i)])
+                                       for i in range(len(axes.get("толщина_мм", [])))],
+                        "норма_мин_м": [self._parse(self.entries[(section, gost, "норма_мин_м", i)])
+                                        for i in range(len(axes.get("норма_мин_м", [])))],
+                    }
+                    for gost, axes in table.items()
+                }
+                continue
+            if section == "ФАСКИ_СВАРКА":
+                out[section] = [
+                    {
+                        "макс_толщина_мм": self._parse(self.entries[(section, idx, "макс_толщина_мм", None)]),
+                        "толщина_мм": [self._parse(self.entries[(section, idx, "толщина_мм", i)])
+                                       for i in range(len(cfg.get("толщина_мм", [])))],
+                        "норма_мм_мин": [self._parse(self.entries[(section, idx, "норма_мм_мин", i)])
+                                         for i in range(len(cfg.get("норма_мм_мин", [])))],
+                    }
+                    for idx, cfg in enumerate(table)
+                ]
+                continue
             first_val = next(iter(table.values()))
             if isinstance(first_val, dict):
                 out[section] = {
