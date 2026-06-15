@@ -133,6 +133,13 @@ def calculate_lathe_time(item_type, p, m_info=None, force_machine=None):
     except Exception:
         return {"time_sec": 0.0, "machine": None, "rpm": 0}
 
+    # У "вала" и "корпуса подшипника" наибольший наружный диаметр приходит
+    # с экрана как Dt (поля D там нет). D используется ниже для выбора
+    # станка и скорости резания — без этой подстановки они считались бы
+    # по D=0 (т.е. всегда по самому маленькому станку 16K20).
+    if item_type in ("shaft", "bearinghousing") and D == 0:
+        D = Dt
+
 
     # Синхронизация названий типов для SHEET_PRODUCTS во избежание багов со строками
     normalized_type = item_type
