@@ -212,13 +212,26 @@ def calculate_lathe_time(item_type, p, m_info=None, force_machine=None):
         return (path_length * passes_f) / speed_f
 
     def get_turning_time(d_start, d_end, length, boring=False):
-        """Продольное точение (boring=True → внутреннее растачивание, siem_transverse)."""
+        """Продольное точение/растачивание.
+
+        boring=True → внутреннее растачивание: глубина прохода siem_transverse,
+        а обороты берутся по ФАКТИЧЕСКОМУ (меньшему) среднему диаметру расточки,
+        как в строках B113/B114 эталонной таблицы. Иначе расточка считалась бы
+        на оборотах большого наружного диаметра заготовки и выходила бы в ~1.5
+        раза медленнее реальной. Подача при этом остаётся продольной (feed_turn),
+        как для внутреннего точения B112."""
         if length <= 0 or abs(d_start - d_end) < 0.1: return 0
-        if speed_long <= 0: return 0
         radial_depth = abs(d_start - d_end) / 2
-        siem = siem_transverse if boring else siem_long
+        if boring:
+            avg_d = (d_start + d_end) / 2 if d_end > 0 else d_start
+            speed = feed_turn * get_rpm_for_diam(avg_d)
+            siem = siem_transverse
+        else:
+            speed = speed_long
+            siem = siem_long
+        if speed <= 0: return 0
         passes_t = max(2, math.ceil(radial_depth / siem))
-        return (abs(length) * passes_t) / speed_long
+        return (abs(length) * passes_t) / speed
 
     def get_chamfer_time(chamfers, angles=None):
         """chamfers: list of chamfer sizes (mm). angles: list of angles (same units as Excel cell,
