@@ -199,9 +199,14 @@ class TabNorms(tk.Frame):
 
     def _render_flat(self, grid, section, table):
         """Плоская таблица: ключ -> значение (одна строка полей на ключ)."""
+        # Для секций с короткими числовыми ключами (толщина листа) сужаем
+        # колонку подписей, чтобы поле ввода стояло вплотную к ключу.
+        narrow = section == "ПРИПУСК_НА_ДИАМЕТР"
+        label_width = 6 if narrow else 18
         for r, (key, val) in enumerate(table.items()):
             tk.Label(grid, text=key, font=("Arial", 10), anchor="w",
-                     width=18).grid(row=r, column=0, sticky="w", pady=1)
+                     width=label_width).grid(row=r, column=0, sticky="w",
+                                             padx=(0, 4) if narrow else 0, pady=1)
             self._add_entry(grid, r, 1, (section, key, None), val)
 
     def _render_ranges(self, grid, section, table):
