@@ -474,7 +474,8 @@ def calculate_lathe_time(item_type, p, m_info=None, force_machine=None):
         total_min = t_turn_out + t_turn_Dc1 + t_turn_Dm1 + t_turn_Dc2 + t_turn_Dm2 + t_turn_Da + t_face
 
     elif item_type == "bearinghousing":
-        t_turn_out = get_turning_time(D1, D, t)
+        # Наружный диаметр приходит с экрана под именем Dt (turningotp/bearinghousing.py)
+        t_turn_out = get_turning_time(D1, Dt, t)
         t_face = get_facing_time(D1, 0, delta_S)
         t_turn_Dc = get_turning_time(Dc, 0, t, boring=True)
         t_turn_Dm = get_turning_time(Dm, Dc, t - c, boring=True)

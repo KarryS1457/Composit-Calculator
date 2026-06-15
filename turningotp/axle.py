@@ -164,8 +164,10 @@ class axle(tk.Frame):
                 "D1": float(self.ent_D1.get() or 0),
                 "S": float(self.ent_S.get() or 0),
             }
-            # Отправляем в презентер с типом "axle"
-            self.controller.handle_lathe_calculation("axle", payload)
+            # Если задана средняя ступень Dm/m (верхний вариант чертежа) —
+            # используем полную формулу axle2, которая её учитывает; иначе axle.
+            item_type = "axle2" if payload["Dm"] > 0 and payload["m"] > 0 else "axle"
+            self.controller.handle_lathe_calculation(item_type, payload)
         except ValueError:
             self.res_box.config(text="ОШИБКА: Введите числовые значения", fg="red")
 
