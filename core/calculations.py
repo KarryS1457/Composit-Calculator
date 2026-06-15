@@ -76,13 +76,19 @@ def calculate_weld_logic(gost, s, l_mm, m, k_lp, k_pos, k_posture, weld_data, ch
     t_vn = t_prep + t_cham
     t_sht_min = (t_nsh * l_m + t_vn) * k_lp
 
+    # Толщина за пределами таблицы выбранного ГОСТ — результат экстраполирован
+    # и может быть неточным (расчет не блокируем, только предупреждаем).
+    out_of_range = s < th_list[0] or s > th_list[-1]
+
     return {
         "total_sec": int(t_sht_min * 60),
         "prep": t_prep,
         "chamfer": t_cham,
         "weld": t_nsh * l_m,
         "gost": gost,
-        "s": s
+        "s": s,
+        "out_of_range": out_of_range,
+        "s_range": (th_list[0], th_list[-1]),
     }
 
 # Типы изделий из эталонной таблицы Excel (лист "Типы изделий")

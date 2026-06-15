@@ -165,6 +165,14 @@ class AppPresenter:
                 f"ОБЩАЯ НОРМА: {minutes} мин {seconds} сек"
             )
 
+            if result["out_of_range"]:
+                lo, hi = result["s_range"]
+                res_text += (
+                    f"\n\nВНИМАНИЕ: толщина S={result['s']:.1f}мм вне таблицы "
+                    f"норм для шва {result['gost']} ({lo}-{hi}мм). "
+                    f"Результат получен экстраполяцией и может быть неточным."
+                )
+
             # Отправляем текст обратно во View для отображения
             self.current_screen.show_results(res_text)
 
