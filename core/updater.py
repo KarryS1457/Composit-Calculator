@@ -18,7 +18,7 @@ import subprocess
 import sys
 import tempfile
 
-VERSION = "1.1.3"
+VERSION = "1.1.4"
 UPDATE_DIR = r"\\storage\ФАЙЛООБМЕННИК\Сасин\updates"
 VERSION_FILE = "version.json"
 
