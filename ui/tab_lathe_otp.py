@@ -1,32 +1,21 @@
 import tkinter as tk
 import importlib
+from core.utils import ScrollableFrame
 
 class TabLatheOtp(tk.Frame):
     def __init__(self, parent, presenter):
         super().__init__(parent)
         self.presenter = presenter 
        
-        self.canvas = tk.Canvas(self, highlightthickness=0)
-        self.scrollbar = tk.Scrollbar(self, orient="vertical", command=self.canvas.yview)
-        self.scrollable_frame = tk.Frame(self.canvas)
-
-        self.scrollable_frame.bind(
-            "<Configure>",
-            lambda e: self.canvas.configure(scrollregion=self.canvas.bbox("all"))
-        )
-
-        self.canvas_window = self.canvas.create_window((0, 0), window=self.scrollable_frame, anchor="nw")
-        self.canvas.bind('<Configure>', self._on_canvas_configure)
-
-        self.scrollbar.pack(side="right", fill="y")
-        self.canvas.pack(side="left", fill="both", expand=True)
-        self.canvas.configure(yscrollcommand=self.scrollbar.set)
+        sf = ScrollableFrame(self)
+        sf.pack(fill="both", expand=True)
+        self.scrollable_frame = sf.inner_frame
 
         # Кнопка назад
         tk.Button(self.scrollable_frame, text="← НАЗАД В МЕНЮ", font=("Arial", 9),
                   fg="#7f8c8d", relief="flat",
                   command=self.presenter.show_main_menu).pack(anchor="w", pady=(0, 20))
-       
+
         tk.Label(self.scrollable_frame, text="ВЫБОР ИЗДЕЛИЙ", font=("Arial", 16, "bold")).pack(pady=30)
 
         # Передаем не классы, а строковые названия (ключи)
@@ -42,19 +31,6 @@ class TabLatheOtp(tk.Frame):
                             fg="white", height=2,
                             command=lambda sn=screen_name: self.open_detail_screen(sn))
             btn.pack(fill="x", pady=10, padx=20)
-
-        # Прокрутку вешаем напрямую на canvas и все дочерние виджеты, а не
-        # глобально через bind_all: иначе после ухода с экрана (виджеты
-        # уничтожены) колесо мыши продолжает слать события в удаленный canvas.
-        self._bind_mousewheel(self.canvas)
-        self._bind_mousewheel(self.scrollable_frame)
-        for child in self.scrollable_frame.winfo_children():
-            self._bind_mousewheel(child)
-
-    def _bind_mousewheel(self, widget):
-        widget.bind("<MouseWheel>", self._on_mousewheel, add="+")
-        widget.bind("<Button-4>", self._on_mousewheel, add="+")
-        widget.bind("<Button-5>", self._on_mousewheel, add="+")
 
     def open_detail_screen(self, screen_name):
         """Динамический ленивый импорт"""
@@ -72,13 +48,3 @@ class TabLatheOtp(tk.Frame):
             print(f"Ошибка загрузки экрана {screen_name}: {e}")
 
 
-    def _on_canvas_configure(self, event):
-        self.canvas.itemconfig(self.canvas_window, width=event.width)
-
-    def _on_mousewheel(self, event):
-        if not self.canvas.winfo_exists():
-            return
-        if event.num == 4 or event.delta > 0:
-            self.canvas.yview_scroll(-1, "units")
-        elif event.num == 5 or event.delta < 0:
-            self.canvas.yview_scroll(1, "units")

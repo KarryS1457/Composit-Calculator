@@ -4,6 +4,8 @@ from core.data import AWC_S, AWC_DATA
 from core.logger import log
 
 def trend_extrapolation(x_val, x_list, y_list):
+    if not x_list or not y_list:
+        return 0
     n_points = min(4, len(x_list))
     x = x_list[:n_points] if x_val < x_list[0] else x_list[-n_points:]
     y = y_list[:n_points] if x_val < x_list[0] else y_list[-n_points:]
@@ -18,6 +20,7 @@ def trend_extrapolation(x_val, x_list, y_list):
     return m * x_val + b
 
 def get_val_by_thickness(thickness, x_list, y_list):
+    if not x_list or not y_list: return 0
     if thickness in x_list: return y_list[x_list.index(thickness)]
     if thickness < x_list[0] or thickness > x_list[-1]: 
         return trend_extrapolation(thickness, x_list, y_list)
@@ -46,7 +49,9 @@ def get_AWC_coeff(target_d, target_s):
     return AWC_DATA[row_key][col_idx]
 
 def calculate_weld_logic(gost, s, l_mm, m, k_lp, k_pos, k_posture, weld_data, chamfer_data):
-    weld_info = weld_data[gost]
+    weld_info = weld_data.get(gost)
+    if not weld_info or not weld_info[0] or not weld_info[1]:
+        raise ValueError(f"Нет норм сварки для шва {gost}")
     th_list, tm_list = weld_info[0], weld_info[1]
 
     k_obsl = 1.14
@@ -175,16 +180,14 @@ def calculate_lathe_time(item_type, p, m_info=None, force_machine=None):
         # Принудительно используем заданный станок (для расчета альтернатив)
         current_machine = force_machine
     else:
-        # Станок выбирается по диаметру заготовки D1 (D + припуск на сторону):
-        # именно заготовку устанавливают на станок, поэтому он должен допускать D1,
-        # а не только готовый диаметр D.
-        select_diam = final_D1 if final_D1 > 0 else D
+        # Определяем станок по готовому диаметру детали D (как в эталонном Excel,
+        # лист "Получение данных для расчета" B78: выбор идёт строго по D).
         current_machine = m_info.get('machine')
         for name, (low, high) in data.RANGES_DATA.items():
-            if low <= select_diam <= high:
+            if low <= D <= high:
                 if current_machine != name:
                     log.warning(f"АВТОКОРРЕКЦИЯ: Станок изменен с {current_machine} на {name} "
-                                f"(диаметр заготовки D1={select_diam} мм)")
+                                f"(диаметр детали {D} мм)")
                 current_machine = name
                 break
 

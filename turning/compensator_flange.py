@@ -154,9 +154,6 @@ class compensator(tk.Frame):
     def go_back(self):
         self.controller.show_lathe_menu()
 
-    def _on_mousewheel(self, event):
-        self.canvas.yview_scroll(int(-1*(event.delta/120)), "units")
-
     def run_calculation(self):
         try:
             payload = {

@@ -49,7 +49,7 @@ def excel_total(ptype, p):
     Dw = p.get('Dw', p.get('DW', 0)); b = p.get('b', 0); c = p.get('c', 0)
     Dm1 = p.get('Dm1', 0); dm2 = p.get('dm2', 0); K = p.get('K', 0)
     Dk = p.get('Dk', 0); P = p.get('P', 0); n = p.get('n', 0); X = p.get('X', 0)
-    m = machine_by_D(D1 if D1 > 0 else D)
+    m = machine_by_D(D)
     sl, st, fl, ff, chs = data.FEEDRATE_DATA[m]
     B55 = fl * rpm_col(m, (D1 + D) / 2)
     B54 = ff * rpm_col(m, (D1 + D2) / 2 if D2 > 0 else D1)
