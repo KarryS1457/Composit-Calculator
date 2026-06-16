@@ -2,7 +2,6 @@ import tkinter as tk
 from core.utils import resource_path, ScrollableFrame
 from PIL import Image, ImageTk
 
-# НЕ ГОТОВ
 class rotspher(tk.Frame):
     def __init__(self, parent, presenter):
         super().__init__(parent)
