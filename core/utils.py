@@ -48,7 +48,7 @@ class ScrollableFrame(tk.Frame):
         # 6. Обновляем область прокрутки при изменении размера внутреннего фрейма
         self.inner_frame.bind(
             "<Configure>",
-            lambda e: self.canvas.configure(scrollregion=self.canvas.bbox("all"))
+            lambda e: self.canvas.configure(scrollregion=(0, 0, e.width, e.height))
         )
 
         # 7. Заставляем внутренний фрейм растягиваться по ширине Canvas
