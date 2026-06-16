@@ -175,16 +175,14 @@ def calculate_lathe_time(item_type, p, m_info=None, force_machine=None):
         # Принудительно используем заданный станок (для расчета альтернатив)
         current_machine = force_machine
     else:
-        # Станок выбирается по диаметру заготовки D1 (D + припуск на сторону):
-        # именно заготовку устанавливают на станок, поэтому он должен допускать D1,
-        # а не только готовый диаметр D.
-        select_diam = final_D1 if final_D1 > 0 else D
+        # Определяем станок по готовому диаметру детали D (как в эталонном Excel,
+        # лист "Получение данных для расчета" B78: выбор идёт строго по D).
         current_machine = m_info.get('machine')
         for name, (low, high) in data.RANGES_DATA.items():
-            if low <= select_diam <= high:
+            if low <= D <= high:
                 if current_machine != name:
                     log.warning(f"АВТОКОРРЕКЦИЯ: Станок изменен с {current_machine} на {name} "
-                                f"(диаметр заготовки D1={select_diam} мм)")
+                                f"(диаметр детали {D} мм)")
                 current_machine = name
                 break
 
