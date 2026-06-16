@@ -45,11 +45,13 @@ class ScrollableFrame(tk.Frame):
         self.scrollbar.pack(side="right", fill="y")
         self.canvas.pack(side="left", fill="both", expand=True)
 
-        # 6. Обновляем область прокрутки при изменении размера внутреннего фрейма
-        self.inner_frame.bind(
-            "<Configure>",
-            lambda e: self.canvas.configure(scrollregion=(0, 0, e.width, e.height))
-        )
+        # 6. Обновляем область прокрутки при изменении размера внутреннего
+        #    фрейма. Делаем это с задержкой (debounce): во время перетаскивания
+        #    окна события сыплются десятками в секунду, а пересчитывать
+        #    scrollregion нужно лишь когда содержимое реально устоялось.
+        #    Иначе при сотнях полей (редактор норм) тянучка окна тормозит.
+        self._sr_job = None
+        self.inner_frame.bind("<Configure>", self._schedule_scrollregion)
 
         # 7. Заставляем внутренний фрейм растягиваться по ширине Canvas
         #    (только без горизонтальной прокрутки — иначе широкое содержимое
@@ -64,6 +66,17 @@ class ScrollableFrame(tk.Frame):
         # Дочерние виджеты добавляются позже (в конструкторе экрана-наследника),
         # поэтому привязываем рекурсивно после завершения построения интерфейса.
         self.after(100, lambda: self.bind_mouse_scroll(self.inner_frame, recursive=True))
+
+    def _schedule_scrollregion(self, event=None):
+        """Откладываем пересчет области прокрутки до паузы в потоке событий."""
+        if self._sr_job is not None:
+            self.canvas.after_cancel(self._sr_job)
+        self._sr_job = self.canvas.after(120, self._update_scrollregion)
+
+    def _update_scrollregion(self):
+        self._sr_job = None
+        if self.canvas.winfo_exists():
+            self.canvas.configure(scrollregion=self.canvas.bbox("all"))
 
     def _on_canvas_configure(self, event):
         """Растягиваем внутренний фрейм по ширине холста"""
