@@ -490,10 +490,15 @@ def _load_external_norms():
             awc_s = sorted(float(s) for s in first_table.keys())
             g["AWC_S"] = [int(s) if s == int(s) else s for s in awc_s]
             awc_data = {}
+            # Значения берем строго в порядке отсортированных S, чтобы столбцы
+            # совпали с осью AWC_S выше (иначе при несортированных ключах в JSON
+            # коэффициенты разъедутся относительно толщин — get_AWC_coeff вернет
+            # неверный множитель).
+            s_keys_sorted = sorted(first_table.keys(), key=float)
             for d1, table in awc_raw.items():
                 d1_num = float(d1)
                 d1_key = int(d1_num) if d1_num == int(d1_num) else d1_num
-                awc_data[d1_key] = [table[s_key] for s_key in table]
+                awc_data[d1_key] = [table[s_key] for s_key in s_keys_sorted]
             g["AWC_DATA"] = awc_data
 
         # ПРИПУСК_НА_ДИАМЕТР: {S: припуск} -> ADMISSION_DATA{S: припуск}
@@ -506,8 +511,18 @@ def _load_external_norms():
             for gost, table in norms["НОРМЫ_СВАРКИ"].items():
                 th = [_to_float(x) for x in table.get("толщина_мм", [])]
                 tm = [_to_float(x) for x in table.get("норма_мин_м", [])]
+                # Списки толщин и норм должны идти парами. Если в файле они
+                # разной длины (ручная правка) — обрезаем до общей длины, чтобы
+                # нормы не сдвинулись относительно толщин. Пустую таблицу
+                # пропускаем (расчет по такому ГОСТу упал бы на пустом списке).
+                if not th or not tm:
+                    continue
+                if len(th) != len(tm):
+                    n = min(len(th), len(tm))
+                    th, tm = th[:n], tm[:n]
                 weld[gost] = (th, tm)
-            g["WELD_DATA"] = weld
+            if weld:
+                g["WELD_DATA"] = weld
 
         # ФАСКИ_СВАРКА: [{макс_толщина_мм, толщина_мм:[...], норма_мм_мин:[...]}] -> CHAMFER_DATA
         if isinstance(norms.get("ФАСКИ_СВАРКА"), list) and norms["ФАСКИ_СВАРКА"]:
