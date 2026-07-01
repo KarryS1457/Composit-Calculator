@@ -6,6 +6,7 @@ from PIL import Image, ImageTk
 import core.calculations as calc
 import core.data as data
 import core.updater as updater
+import core.calc_log as calc_log
 from ui.menu import MainMenu
 from ui.tab_weld import TabWeld
 from ui.tab_lathe import TabLathe
@@ -176,6 +177,10 @@ class AppPresenter:
             # Отправляем текст обратно во View для отображения
             self.current_screen.show_results(res_text)
 
+            # Пишем расчет в журнал
+            calc_log.log_calc("СВАРКА", f"Шов {result['gost']}",
+                              raw_data, res_text)
+
         except Exception as e:
             self.view.show_error(f"Сбой расчета: {e}")
 
@@ -207,6 +212,27 @@ class AppPresenter:
             return ("ОШИБКА: Внутренний диаметр детали (d) не может быть меньше "
                     "внутреннего диаметра заготовки (D2).")
         return None
+
+    # Человекочитаемые названия изделий для журнала расчетов
+    _ITEM_NAMES = {
+        "swivel": "Фланец поворотный",
+        "rotspher": "Фланец поворотный сферический",
+        "compensator": "Фланец компенсатора",
+        "forming": "Фланец формующий",
+        "shell": "Обечайка",
+        "circle": "Круг",
+        "adapter": "Фланец переходной",
+        "bushing": "Втулка",
+        "threaded_bushing": "Втулка резьбовая",
+        "weldring": "Кольцо приварное",
+        "welding_flange": "Фланец приварной",
+        "welding_tnf": "Фланец приварной ТНФ",
+        "pin": "Штифт",
+        "axle": "Ось",
+        "axle2": "Ось",
+        "shaft": "Вал",
+        "bearinghousing": "Корпус подшипника",
+    }
 
     def _process_turning_calculation(self, item_type, raw_data):
         """Единая логика для расчетов токарной обработки (обычной и ОТП)"""
@@ -258,6 +284,10 @@ class AppPresenter:
                 res_text += f"- {alt_machine}: {self._format_time(alt_total)}\n"
 
         self.current_screen.show_results(res_text)
+
+        # Пишем расчет в журнал
+        title = self._ITEM_NAMES.get(item_type, item_type)
+        calc_log.log_calc("ТОКАРКА", f"{title} ({item_type})", raw_data, res_text)
 
     def handle_lathe_calculation(self, item_type, raw_data):
         """Обертка для расчета стандартной токарки"""
