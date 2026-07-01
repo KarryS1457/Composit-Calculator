@@ -44,7 +44,14 @@ class TabLatheOtp(tk.Frame):
             self.presenter.show_lathe_otp_detail(screen_class)
             
         except (ImportError, AttributeError) as e:
-            # Если что-то пошло не так, просто печатаем ошибку и не ломаем программу
+            # Показываем ошибку пользователю, а не глушим молча: иначе при
+            # проблеме со сборкой (не попал модуль в exe) клик просто "не
+            # работает" без каких-либо признаков.
             print(f"Ошибка загрузки экрана {screen_name}: {e}")
+            try:
+                self.presenter.view.show_error(
+                    f"Не удалось открыть экран «{screen_name}»: {e}")
+            except Exception:
+                pass
 
 
