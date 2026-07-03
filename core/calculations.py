@@ -14,14 +14,17 @@ def trend_extrapolation(x_val, x_list, y_list):
     sum_xy = sum(xi * yi for xi, yi in zip(x, y))
     sum_x2 = sum(xi**2 for xi in x)
     denom = (n * sum_x2 - sum_x**2)
-    if denom == 0: return y[-1]
+    if denom == 0: 
+        return y[-1]
     m = (n * sum_xy - sum_x * sum_y) / denom
     b = (sum_y - m * sum_x) / n
     return m * x_val + b
 
 def get_val_by_thickness(thickness, x_list, y_list):
-    if not x_list or not y_list: return 0
-    if thickness in x_list: return y_list[x_list.index(thickness)]
+    if not x_list or not y_list: 
+        return 0
+    if thickness in x_list: 
+        return y_list[x_list.index(thickness)]
     if thickness < x_list[0] or thickness > x_list[-1]: 
         return trend_extrapolation(thickness, x_list, y_list)
     for i in range(len(x_list) - 1):
@@ -127,7 +130,6 @@ def calculate_lathe_time(item_type, p, m_info=None, force_machine=None):
         a = to_float(p.get('a', 0))
         c = to_float(p.get('c', 0))
         m = to_float(p.get('m', 0))
-        DW = to_float(p.get('DW', 0))
         DM = to_float(p.get('DM', 0))
         Dc = to_float(p.get('Dc', 0))
         Dm = to_float(p.get('Dm', 0))
@@ -154,8 +156,10 @@ def calculate_lathe_time(item_type, p, m_info=None, force_machine=None):
 
     # Синхронизация названий типов для SHEET_PRODUCTS во избежание багов со строками
     normalized_type = item_type
-    if item_type == "welding_flange": normalized_type = "weldflange"
-    if item_type == "welding_tnf": normalized_type = "weldingtnf"
+    if item_type == "welding_flange": 
+        normalized_type = "weldflange"
+    if item_type == "welding_tnf": 
+        normalized_type = "weldingtnf"
 
     allowance = 6.0
     if normalized_type in data.SHEET_PRODUCTS:
@@ -213,13 +217,15 @@ def calculate_lathe_time(item_type, p, m_info=None, force_machine=None):
     speed_long = feed_turn * rpm_long
 
     def get_facing_time(d_start, d_end, thickness):
-        if thickness <= 0 or abs(d_start - d_end) < 0.01: return 0
+        if thickness <= 0 or abs(d_start - d_end) < 0.01: 
+            return 0
         path_length = abs(d_start - d_end)  # полный диаметр (как в Excel)
         # Excel B46: при отсутствии второго диаметра средний = первый (IFERROR → D1)
         avg_diameter = (d_start + d_end) / 2 if d_end > 0 else d_start
         rpm_f = get_rpm_for_diam(avg_diameter)
         speed_f = feed_face * rpm_f
-        if speed_f <= 0: return 0
+        if speed_f <= 0: 
+            return 0
         passes_f = max(2, math.ceil((thickness / 2) / siem_transverse))
         return (path_length * passes_f) / speed_f
 
@@ -232,7 +238,8 @@ def calculate_lathe_time(item_type, p, m_info=None, force_machine=None):
         на оборотах большого наружного диаметра заготовки и выходила бы в ~1.5
         раза медленнее реальной. Подача при этом остаётся продольной (feed_turn),
         как для внутреннего точения B112."""
-        if length <= 0 or abs(d_start - d_end) < 0.1: return 0
+        if length <= 0 or abs(d_start - d_end) < 0.1: 
+            return 0
         radial_depth = abs(d_start - d_end) / 2
         if boring:
             avg_d = (d_start + d_end) / 2 if d_end > 0 else d_start
@@ -241,7 +248,8 @@ def calculate_lathe_time(item_type, p, m_info=None, force_machine=None):
         else:
             speed = speed_long
             siem = siem_long
-        if speed <= 0: return 0
+        if speed <= 0: 
+            return 0
         passes_t = max(2, math.ceil(radial_depth / siem))
         return (abs(length) * passes_t) / speed
 
@@ -259,7 +267,8 @@ def calculate_lathe_time(item_type, p, m_info=None, force_machine=None):
     def get_thread_time(th_diameter, th_pitch, th_lenght, th_pos):
         """Резьба по листу Excel "Расчет резьбы": глубина = (H/2)*1.1, съем 0.2 мм/проход.
         Обороты: внешняя — маш. 15 / ручная 10 (M<16); внутренняя — маш. 100 / ручная 12 (M<36)."""
-        if th_pitch <= 0 or th_lenght <= 0: return 0.0
+        if th_pitch <= 0 or th_lenght <= 0: 
+            return 0.0
         th_depth = (th_pitch / 2) * 1.1
         th_passes = math.ceil(th_depth / 0.2)
         if th_pos:  # внешняя резьба
@@ -337,7 +346,8 @@ def calculate_lathe_time(item_type, p, m_info=None, force_machine=None):
 
         def passes_if(x, siem):
             """Excel: IF(ROUNDUP(x/siem)=1, ROUNDUP+1, ROUNDUP)."""
-            if siem <= 0: return 0
+            if siem <= 0: 
+                return 0
             r = roundup(x / siem)
             return r + 1 if r == 1 else r
 
@@ -348,7 +358,8 @@ def calculate_lathe_time(item_type, p, m_info=None, force_machine=None):
         def rpm_in_col(col, diameter):
             """Обороты из заданной колонки таблицы оборотов (ближайший диаметр)."""
             diams, rpms = data.TURNING_DATA.get(col, ([], []))
-            if not diams: return 0
+            if not diams: 
+                return 0
             i = min(range(len(diams)), key=lambda k: abs(diams[k] - diameter))
             return rpms[i]
 
@@ -357,7 +368,8 @@ def calculate_lathe_time(item_type, p, m_info=None, force_machine=None):
             заголовком дают обороты на одну ступень диаметра НИЖЕ ближайшей.
             На первой ступени (50 мм) формула попадает в заголовок -> ошибка -> 0."""
             diams, rpms = data.TURNING_DATA.get(col, ([], []))
-            if not diams: return 0
+            if not diams: 
+                return 0
             i = min(range(len(diams)), key=lambda k: abs(diams[k] - diameter))
             return rpms[i - 1] if i > 0 else 0
 
@@ -422,8 +434,10 @@ def calculate_lathe_time(item_type, p, m_info=None, force_machine=None):
 
         # B119: сферическая часть (F1-F10, B103)
         B119 = 0
-        rs = to_float(p.get('RS', 0)); ra = to_float(p.get('RA', 0))
-        a1 = to_float(p.get('A1', 0)); as_depth = to_float(p.get('as', 0))
+        rs = to_float(p.get('RS', 0)) 
+        ra = to_float(p.get('RA', 0))
+        a1 = to_float(p.get('A1', 0)) 
+        as_depth = to_float(p.get('as', 0))
         if rs > 0 and ra > 0:
             b5 = (DM - d) / 2
             f1 = (rs * 2) * math.sin((ra / 2) * math.pi / 180)
