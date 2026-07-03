@@ -177,9 +177,9 @@ class AppPresenter:
             # Отправляем текст обратно во View для отображения
             self.current_screen.show_results(res_text)
 
-            # Пишем расчет в журнал
+            # Пишем расчет в журнал (с пошаговым ходом)
             calc_log.log_calc("СВАРКА", f"Шов {result['gost']}",
-                              raw_data, res_text)
+                              raw_data, res_text, steps=result.get('steps'))
 
         except Exception as e:
             self.view.show_error(f"Сбой расчета: {e}")
@@ -285,9 +285,10 @@ class AppPresenter:
 
         self.current_screen.show_results(res_text)
 
-        # Пишем расчет в журнал
+        # Пишем расчет в журнал (с пошаговым ходом основного станка)
         title = self._ITEM_NAMES.get(item_type, item_type)
-        calc_log.log_calc("ТОКАРКА", f"{title} ({item_type})", raw_data, res_text)
+        calc_log.log_calc("ТОКАРКА", f"{title} ({item_type})", raw_data, res_text,
+                          steps=main_res.get('steps'))
 
     def handle_lathe_calculation(self, item_type, raw_data):
         """Обертка для расчета стандартной токарки"""

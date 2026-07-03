@@ -88,6 +88,19 @@ def calculate_weld_logic(gost, s, l_mm, m, k_lp, k_pos, k_posture, weld_data, ch
     # и может быть неточным (расчет не блокируем, только предупреждаем).
     out_of_range = s < th_list[0] or s > th_list[-1]
 
+    steps = [
+        f"Базовая норма по S={s:g} мм: {t_base:.3f} мин/м",
+        f"Коэффициенты: положение ×{k_pos:g}, поза ×{k_posture:g}, "
+        f"обслуживание ×{k_obsl:g}" + (f", доп. C4 ×{k_c4_extra:g}" if k_c4_extra != 1.0 else ""),
+        f"Норма сварки шва: {t_nsh:.3f} мин/м × длина {l_m:g} м = {t_nsh*l_m:.3f} мин",
+        f"Кран: {t_kran:g} мин (масса {m:g} кг), маркировка: {t_mark:g} мин",
+    ]
+    if gost != "C4":
+        steps.append(f"Снятие фасок: {t_cham:.3f} мин")
+    steps.append(f"Подготовительно-вспомогательное: {t_vn:.3f} мин")
+    steps.append(f"Тип производства: ×{k_lp:g}")
+    steps.append(f"ИТОГО: {t_sht_min:.3f} мин ({int(t_sht_min*60)} сек)")
+
     return {
         "total_sec": int(t_sht_min * 60),
         "prep": t_prep,
@@ -97,6 +110,7 @@ def calculate_weld_logic(gost, s, l_mm, m, k_lp, k_pos, k_posture, weld_data, ch
         "s": s,
         "out_of_range": out_of_range,
         "s_range": (th_list[0], th_list[-1]),
+        "steps": steps,
     }
 
 # Типы изделий из эталонной таблицы Excel (лист "Типы изделий")
@@ -321,6 +335,9 @@ def calculate_lathe_time(item_type, p, m_info=None, force_machine=None):
 
     total_min = 0.0
     thread_min = 0.0  # резьба считается отдельно (Excel E3), без коэфф. всп. работ
+    # Пошаговая разбивка: список (описание, время_в_минутах). Заполняется
+    # по ходу расчета и возвращается для журнала расчетов.
+    components = []
 
     # --- ЛОГИКА ПО ТИПАМ ---
     # Изделия эталонной таблицы считаются единым "движком", который построчно
@@ -483,6 +500,23 @@ def calculate_lathe_time(item_type, p, m_info=None, force_machine=None):
         total_min = (B111 + B112 + B113 + B114 + B115 + B116 + B117 + B118 +
                      B119 + B120 + B121 + B122 + B123 + B125)
 
+        components += [
+            ("Наружное точение", B111),
+            ("Внутреннее точение", B112),
+            ("1-я внутр. проточка (DM)", B113),
+            ("2-я внутр. проточка (Dw)", B114),
+            ("Торцовка", B115),
+            ("Фаски", B116),
+            ("Расточка с канавой (Dm1)", B117),
+            ("Канава (K−E)", B118),
+            ("Сферическая часть", B119),
+            ("Внешняя проточка (ch5)", B120),
+            ("Торцевые канавы", B121),
+            ("Внешняя проточка по габариту t", B122),
+            ("Проточка по глубине a", B123),
+            ("Внешняя канава втулки", B125),
+        ]
+
         # Резьба (E3, отдельной строкой): в таблице считается только для "Втулки" —
         # лишь у нее есть флаг "Внеш.=1/Внутр.=0"; у "Втулки резьбовой" параметры
         # флага нет, и формула E3 дает 0 (IFERROR) — повторяем поведение таблицы.
@@ -500,6 +534,12 @@ def calculate_lathe_time(item_type, p, m_info=None, force_machine=None):
         t_turn_Da = get_turning_time(Dc, Da, a)
         t_face = get_facing_time(D1, D2, delta_S)
         total_min = t_turn_out + t_turn_Dc + t_turn_Da + t_face
+        components += [
+            ("Наружное точение (D1→D)", t_turn_out),
+            ("Проточка D→Dc", t_turn_Dc),
+            ("Проточка канавы Dc→Da", t_turn_Da),
+            ("Торцовка", t_face),
+        ]
 
     elif item_type == "axle2":
         t_turn_out = get_turning_time(D1, D, t)
@@ -508,6 +548,13 @@ def calculate_lathe_time(item_type, p, m_info=None, force_machine=None):
         t_turn_Da = get_turning_time(Dm, Da, a)
         t_face = get_facing_time(D1, D2, delta_S)
         total_min = t_turn_out + t_turn_Dc + t_turn_Dm + t_turn_Da + t_face
+        components += [
+            ("Наружное точение (D1→D)", t_turn_out),
+            ("Проточка D→Dc", t_turn_Dc),
+            ("Проточка Dc→Dm", t_turn_Dm),
+            ("Проточка канавы Dm→Da", t_turn_Da),
+            ("Торцовка", t_face),
+        ]
 
     elif item_type == "shaft":
         t_turn_out = get_turning_time(D1, Dt, t)
@@ -518,6 +565,15 @@ def calculate_lathe_time(item_type, p, m_info=None, force_machine=None):
         t_turn_Da = get_turning_time(Dm1, Da, a)
         t_face = get_facing_time(D1, Dt, delta_S)
         total_min = t_turn_out + t_turn_Dc1 + t_turn_Dm1 + t_turn_Dc2 + t_turn_Dm2 + t_turn_Da + t_face
+        components += [
+            ("Наружное точение (D1→Dt)", t_turn_out),
+            ("Проточка Dt→Dc1", t_turn_Dc1),
+            ("Проточка Dc1→Dm1", t_turn_Dm1),
+            ("Проточка Dt→Dc2", t_turn_Dc2),
+            ("Проточка Dc2→Dm2", t_turn_Dm2),
+            ("Проточка канавы Dm1→Da", t_turn_Da),
+            ("Торцовка", t_face),
+        ]
 
     elif item_type == "bearinghousing":
         # Наружный диаметр приходит с экрана под именем Dt (turningotp/bearinghousing.py)
@@ -526,6 +582,12 @@ def calculate_lathe_time(item_type, p, m_info=None, force_machine=None):
         t_turn_Dc = get_turning_time(Dc, 0, t, boring=True)
         t_turn_Dm = get_turning_time(Dm, Dc, t - c, boring=True)
         total_min = t_turn_out + t_face + t_turn_Dc + t_turn_Dm
+        components += [
+            ("Наружное точение (D1→Dt)", t_turn_out),
+            ("Торцовка", t_face),
+            ("Растачивание Dc", t_turn_Dc),
+            ("Растачивание Dm→Dc", t_turn_Dm),
+        ]
 
     elif item_type == "hub_composite_solid":
         # =======================================================
@@ -599,18 +661,43 @@ def calculate_lathe_time(item_type, p, m_info=None, force_machine=None):
         total_min = t_turn_assembly
 
 
-    final_time_sec = (total_min * 60) * get_AWC_coeff(final_D1, S)
+    awc = get_AWC_coeff(final_D1, S)
+    final_time_sec = (total_min * 60) * awc
 
     # Кольцо закладное: время удваивается (Excel E2, IF("Кольцо закладное ?"=1, 2, 1))
-    if to_float(p.get('insert_ring', 0)) == 1:
+    insert_ring = to_float(p.get('insert_ring', 0)) == 1
+    if insert_ring:
         final_time_sec *= 2
 
     log.info(f"Успешный расчет {item_type}. Чистое машинное время: {total_min:.2f} мин. "
              f"Итоговое время (с коэфф): {final_time_sec:.2f} сек.")
 
+    # --- Пошаговая разбивка для журнала расчетов ---
+    steps = []
+    steps.append(f"Станок: {current_machine} (по диаметру D={D:g} мм)")
+    if user_D1 <= 0 and normalized_type in data.SHEET_PRODUCTS:
+        steps.append(f"Припуск на диаметр по S={S:g}: +{allowance:g} мм → "
+                     f"диаметр заготовки D1={final_D1:g} мм")
+    steps.append("Составляющие машинного времени:")
+    shown = False
+    for name, minutes in components:
+        if minutes and minutes > 0:
+            steps.append(f"  • {name}: {minutes*60:.2f} сек ({minutes:.3f} мин)")
+            shown = True
+    if not shown:
+        steps.append("  • (нет ненулевых составляющих)")
+    steps.append(f"Сумма машинного времени: {total_min:.3f} мин ({total_min*60:.2f} сек)")
+    steps.append(f"Коэффициент вспом. работ (D1={final_D1:g}, S={S:g}): ×{awc:g}")
+    if insert_ring:
+        steps.append("Закладное кольцо: ×2")
+    steps.append(f"ИТОГО токарная обработка: {final_time_sec:.2f} сек")
+    if thread_min > 0:
+        steps.append(f"Резьба (отдельно, без коэфф.): {thread_min*60:.2f} сек")
+
     return {
         "time_sec": final_time_sec,
         "machine": current_machine,
         "rpm": get_rpm_for_diam(D),
-        "thread_sec": thread_min * 60
+        "thread_sec": thread_min * 60,
+        "steps": steps,
     }
