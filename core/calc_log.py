@@ -99,13 +99,14 @@ def _fmt_inputs(inputs):
     return " ".join(parts)
 
 
-def log_calc(kind, title, inputs, result_text):
+def log_calc(kind, title, inputs, result_text, steps=None):
     """Дописывает один расчет в журнал.
 
     kind         — 'ТОКАРКА' / 'СВАРКА' (метка раздела)
     title        — название изделия/шва
     inputs       — dict введенных параметров
     result_text  — готовый текст результата (как показан пользователю)
+    steps        — список строк с пошаговым ходом расчета (необязательно)
     """
     try:
         stamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -116,8 +117,11 @@ def log_calc(kind, title, inputs, result_text):
             f"===== {stamp} | {kind} | ПК: {host}/{user} =====\n"
             f"Изделие: {title}\n"
             f"Ввод: {_fmt_inputs(inputs)}\n"
-            f"Результат:\n{indented}\n\n"
         )
+        if steps:
+            steps_text = "\n".join("    " + str(line) for line in steps)
+            block += f"Ход расчета:\n{steps_text}\n"
+        block += f"Результат:\n{indented}\n\n"
 
         # Сначала пробуем общую сетевую папку, при неудаче — локальный профиль
         try:
