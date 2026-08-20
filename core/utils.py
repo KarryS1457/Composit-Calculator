@@ -2,6 +2,7 @@ import os
 import sys
 import tkinter as tk
 
+
 def resource_path(relative_path):
     """ Получает абсолютный путь к ресурсу, работает для dev и для PyInstaller """
     try:

@@ -1,7 +1,7 @@
 import tkinter as tk
 from tkinter import messagebox, ttk
 
-import core.data as data
+from core import data
 from core.utils import ScrollableFrame
 
 # Разбивка секций норм по вкладкам редактора

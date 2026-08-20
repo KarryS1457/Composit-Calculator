@@ -1,18 +1,20 @@
 import tkinter as tk
+
 from core.utils import ScrollableFrame
-from turning.swivel_flange import swivel
+from turning.adapter_flange import adapter
+from turning.bushing import bushing
+from turning.circle import circle
 from turning.compensator_flange import compensator
 from turning.forming_flange import forming
-from turning.shell import shell
-from turning.circle import circle
-from turning.adapter_flange import adapter
+from turning.pin import pin
 from turning.rotary_spherical_flange import rotspher
+from turning.shell import shell
+from turning.swivel_flange import swivel
 from turning.threaded_bushing import thread
-from turning.bushing import bushing
-from turning.welding_flange_tnf import weldingtnf
 from turning.welded_ring import weldring
 from turning.welding_flange import weldflange
-from turning.pin import pin
+from turning.welding_flange_tnf import weldingtnf
+
 
 class TabLathe(tk.Frame):
     def __init__(self, parent, presenter):

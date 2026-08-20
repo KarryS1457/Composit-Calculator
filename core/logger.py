@@ -1,7 +1,8 @@
 import logging
-from logging.handlers import RotatingFileHandler
 import os
 import sys
+from logging.handlers import RotatingFileHandler
+
 
 def setup_logger():
     if getattr(sys, 'frozen', False):

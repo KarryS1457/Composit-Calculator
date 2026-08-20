@@ -1,6 +1,8 @@
 import tkinter as tk
-from tkinter import ttk, messagebox
-import core.data as data  # Обрати внимание на путь, если ты создал папку core
+from tkinter import messagebox, ttk
+
+from core import data
+
 
 class TabWeld(tk.Frame):
     def __init__(self, parent, presenter):

@@ -1,6 +1,7 @@
 import os
 import sys
 
+
 class AppModel:
     def __init__(self):
         # Настройки приложения

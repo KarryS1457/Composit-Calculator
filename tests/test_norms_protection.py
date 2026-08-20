@@ -17,8 +17,8 @@ import sys
 import tempfile
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-import core.data as data
-import core.updater as updater
+
+from core import data, updater
 
 passed = 0
 failed = 0

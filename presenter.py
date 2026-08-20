@@ -1,17 +1,18 @@
-import tkinter as tk
 import sys
 import threading
+import tkinter as tk
 from tkinter import messagebox
+
 from PIL import Image, ImageTk
-import core.calculations as calc
-import core.data as data
-import core.updater as updater
-import core.calc_log as calc_log
+
+from core import calc_log, data, updater
+from core import calculations as calc
 from ui.menu import MainMenu
-from ui.tab_weld import TabWeld
 from ui.tab_lathe import TabLathe
 from ui.tab_lathe_otp import TabLatheOtp
 from ui.tab_norms import TabNorms
+from ui.tab_weld import TabWeld
+
 # Добавь импорты для других табов, когда переделаешь их:
 # from ui.tab_turning import TabTurning
 
@@ -83,9 +84,14 @@ class AppPresenter:
                 new_exe = updater.download_update(info['exe_path'], set_progress)
                 updater.apply_update(new_exe)
             except Exception as e:
+                # Текст ошибки сохраняем в отдельную переменную: имя из
+                # "except ... as e" удаляется на выходе из блока, а лямбда
+                # выполняется позже (через view.after) — обращение к "e"
+                # внутри нее упало бы с NameError.
+                err = str(e)
                 self.view.after(0, lambda: (
                     progress.destroy(),
-                    self.view.show_error(f"Не удалось установить обновление: {e}")))
+                    self.view.show_error(f"Не удалось установить обновление: {err}")))
                 return
             # Батник ждет закрытия программы, заменяет exe и перезапускает
             self.view.after(0, self.view.destroy)

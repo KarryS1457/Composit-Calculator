@@ -1,6 +1,8 @@
-import tkinter as tk
 import importlib
+import tkinter as tk
+
 from core.utils import ScrollableFrame
+
 
 class TabLatheOtp(tk.Frame):
     def __init__(self, parent, presenter):

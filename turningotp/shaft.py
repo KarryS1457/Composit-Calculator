@@ -1,6 +1,9 @@
 import tkinter as tk
-from core.utils import resource_path, ScrollableFrame
+
 from PIL import Image, ImageTk
+
+from core.utils import ScrollableFrame, resource_path
+
 
 class shaft(tk.Frame):
     def __init__(self, parent, presenter):
@@ -88,7 +91,7 @@ class shaft(tk.Frame):
             # Загружаем оригинал и храним его в памяти
             self.original_img = Image.open(path)
             self._update_image_display()
-        except Exception as e:
+        except Exception:
             self.img_label.config(text=f"Файл {path} не найден", image='')
             self.original_img = None
 

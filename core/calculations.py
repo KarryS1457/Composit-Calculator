@@ -1,7 +1,8 @@
 import math
-import core.data as data
-from core.data import AWC_S, AWC_DATA
+
+from core import data
 from core.logger import log
+
 
 def trend_extrapolation(x_val, x_list, y_list):
     if not x_list or not y_list:
@@ -34,7 +35,11 @@ def get_val_by_thickness(thickness, x_list, y_list):
     return y_list[-1]
 
 def get_AWC_coeff(target_d, target_s):
-    d_keys = sorted(AWC_DATA.keys())
+    # Таблицы читаем через data.*, а не через "from core.data import ...":
+    # редактор норм подменяет их в core.data на лету (save_norms /
+    # set_active_source), и импортированные по значению копии остались бы
+    # старыми до перезапуска программы.
+    d_keys = sorted(data.AWC_DATA.keys())
     row_key = d_keys[0]
     for d in d_keys:
         if d <= target_d:
@@ -43,13 +48,13 @@ def get_AWC_coeff(target_d, target_s):
             break
 
     col_idx = 0
-    for i, s in enumerate(AWC_S):
+    for i, s in enumerate(data.AWC_S):
         if s <= target_s:
             col_idx = i
         else:
             break
 
-    return AWC_DATA[row_key][col_idx]
+    return data.AWC_DATA[row_key][col_idx]
 
 def calculate_weld_logic(gost, s, l_mm, m, k_lp, k_pos, k_posture, weld_data, chamfer_data):
     weld_info = weld_data.get(gost)

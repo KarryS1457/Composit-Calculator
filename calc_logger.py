@@ -41,9 +41,9 @@
 #   основную программу. При желании передайте raise_errors=True.
 # =====================================================================
 
+import json
 import os
 import sys
-import json
 import threading
 from datetime import datetime
 

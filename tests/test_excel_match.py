@@ -5,10 +5,15 @@
 50+ случайных изделиях всех 13 типов: расхождение 0.00-0.32%.
 Запуск: python tests/test_excel_match.py
 """
-import math, sys, random, os
+import math
+import os
+import random
+import sys
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-import core.data as data
-import core.calculations as calc
+
+from core import calculations as calc
+from core import data
 
 random.seed(42)
 

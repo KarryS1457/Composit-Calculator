@@ -1,6 +1,7 @@
 from model import AppModel
-from view import MainView
 from presenter import AppPresenter
+from view import MainView
+
 
 def main():
     # 1. Создаем Модель (Хранилище логики и системных данных)

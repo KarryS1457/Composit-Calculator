@@ -13,14 +13,14 @@
 # журнал не терялся. Любые ошибки записи глушатся — журнал не должен
 # ломать расчет.
 # =====================================================================
+import getpass
 import os
 import re
-import sys
-import getpass
 import socket
+import sys
 from datetime import datetime
 
-import core.updater as updater
+from core import updater
 
 
 def _local_data_dir():

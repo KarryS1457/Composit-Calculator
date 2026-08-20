@@ -1,5 +1,7 @@
 import tkinter as tk
+
 from core.updater import VERSION
+
 
 class MainMenu(tk.Frame):
     def __init__(self, parent, presenter):
