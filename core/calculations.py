@@ -415,25 +415,35 @@ def calculate_lathe_time(item_type, p, m_info=None, force_machine=None):
         )
         B116 = ch_total / chamfer_speed if chamfer_speed > 0 else 0
 
-        # B113: 1-я внутренняя проточка DM, проходы по глубине (a+E)/2 (B5/B6/B83)
+        # B113: 1-я внутренняя проточка DM, проходы по глубине (a+E)/2 (B5/B6/B83).
+        # Excel B98 обнуляет строку при отрицательной длине расточки (Dm < d):
+        # IF(...>=0; ...; "Ошибка длинна расточки меньше 0!") -> деление на
+        # скорость дает #ЗНАЧ! -> IFERROR -> 0. Без этой проверки опечатка в
+        # диаметре давала бы отрицательное время и уводила итог в минус.
         B83 = passes_if((a + E_val) / 2, siem_transverse)
         B113 = 0
         if DM > 0 and d > 0 and B83 > 0:
-            sp = feed_speed((DM + d) / 2)
-            B113 = (((DM - d) / 2) * B83) / sp if sp > 0 else 0
+            path_113 = ((DM - d) / 2) * B83
+            if path_113 >= 0:
+                sp = feed_speed((DM + d) / 2)
+                B113 = path_113 / sp if sp > 0 else 0
 
         # B114: 2-я внутренняя проточка Dw, проходы (t-b) без /2 и c/2 (B27/B84/B85).
         # Скорость B58: приближенный HLOOKUP станка — подача и обороты берутся
         # из соседней колонки (16к20 -> обороты 0Л52, CK5126 -> данные 1М65)
+        # Строка так же защищена в Excel (B99), как и B98 выше: при Dw < d
+        # длина расточки отрицательная и строка дает 0, а не минусовое время.
         B84 = passes_if(t - b_val, siem_transverse) if b_val > 0 else 0
         B85 = passes_if(c_val / 2, siem_transverse)
         B114 = 0
         if Dw_val > 0 and d > 0 and (B84 + B85) > 0:
-            feed_col = data.APPROX_FEED_COL.get(current_machine, current_machine)
-            appr_feed = to_float(data.FEEDRATE_DATA.get(feed_col, [0] * 5)[3])
-            rpm_col = data.APPROX_RPM_COL.get(current_machine, current_machine)
-            sp = appr_feed * rpm_in_col(rpm_col, (Dw_val + d) / 2)
-            B114 = (((Dw_val - d) / 2) * (B84 + B85)) / sp if sp > 0 else 0
+            path_114 = ((Dw_val - d) / 2) * (B84 + B85)
+            if path_114 >= 0:
+                feed_col = data.APPROX_FEED_COL.get(current_machine, current_machine)
+                appr_feed = to_float(data.FEEDRATE_DATA.get(feed_col, [0] * 5)[3])
+                rpm_col = data.APPROX_RPM_COL.get(current_machine, current_machine)
+                sp = appr_feed * rpm_in_col(rpm_col, (Dw_val + d) / 2)
+                B114 = path_114 / sp if sp > 0 else 0
 
         # B117/B118: компенсатор — расточка с канавой (Dm1) и сама канава (K-E)
         B117 = B118 = 0
@@ -674,6 +684,17 @@ def calculate_lathe_time(item_type, p, m_info=None, force_machine=None):
     if insert_ring:
         final_time_sec *= 2
 
+    # Отрицательное время наружу не отдаем ни при каких данных: это заведомо
+    # бессмысленный результат (обычно — опечатка в диаметре, из-за которой
+    # какая-то строка ушла в минус). Факт отсечки попадает в журнал и в
+    # пошаговую разбивку, чтобы он не остался незамеченным.
+    negative_total = final_time_sec < 0
+    if negative_total:
+        log.warning(f"Расчет {item_type} дал отрицательное время "
+                    f"({final_time_sec:.2f} сек) — результат обнулен. "
+                    f"Параметры: {p}")
+        final_time_sec = 0.0
+
     log.info(f"Успешный расчет {item_type}. Чистое машинное время: {total_min:.2f} мин. "
              f"Итоговое время (с коэфф): {final_time_sec:.2f} сек.")
 
@@ -686,8 +707,12 @@ def calculate_lathe_time(item_type, p, m_info=None, force_machine=None):
     steps.append("Составляющие машинного времени:")
     shown = False
     for name, minutes in components:
-        if minutes and minutes > 0:
-            steps.append(f"  • {name}: {minutes*60:.2f} сек ({minutes:.3f} мин)")
+        # Показываем ВСЕ ненулевые строки, в том числе отрицательные: раньше
+        # минусовая составляющая молча пропускалась, и было не видно, откуда
+        # взялся отрицательный итог.
+        if minutes and abs(minutes) > 1e-9:
+            mark = "  <-- ОТРИЦАТЕЛЬНАЯ, проверьте диаметры" if minutes < 0 else ""
+            steps.append(f"  • {name}: {minutes*60:.2f} сек ({minutes:.3f} мин){mark}")
             shown = True
     if not shown:
         steps.append("  • (нет ненулевых составляющих)")
@@ -695,6 +720,9 @@ def calculate_lathe_time(item_type, p, m_info=None, force_machine=None):
     steps.append(f"Коэффициент вспом. работ (D1={final_D1:g}, S={S:g}): ×{awc:g}")
     if insert_ring:
         steps.append("Закладное кольцо: ×2")
+    if negative_total:
+        steps.append("ВНИМАНИЕ: расчет дал отрицательное время — итог обнулен. "
+                     "Проверьте введенные диаметры.")
     steps.append(f"ИТОГО токарная обработка: {final_time_sec:.2f} сек")
     if thread_min > 0:
         steps.append(f"Резьба (отдельно, без коэфф.): {thread_min*60:.2f} сек")

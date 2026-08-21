@@ -68,18 +68,22 @@ def excel_total(ptype, p):
     chl = sum(round(p.get(f'ch{i}', 0) / math.cos(p.get(f'angle_ch{i}', 0)), 2)
               for i in range(1, 11) if p.get(f'ch{i}', 0) > 0)
     ops += chl / chs
-    # B113: 1-я внутренняя проточка
+    # B113: 1-я внутренняя проточка. B98 отбрасывает строку при отрицательной
+    # длине расточки ("Ошибка длинна расточки меньше 0!" -> #ЗНАЧ! -> IFERROR -> 0)
     B83 = mceil((a + E) / 2, st)
     if DM > 0 and d > 0 and B83 > 0:
+        path = ((DM - d) / 2) * B83
         sp = ff * rpm_col(m, (DM + d) / 2)
-        ops += (((DM - d) / 2) * B83) / sp if sp > 0 else 0
-    # B114: 2-я внутренняя проточка (скорость B58: соседняя колонка станка!)
+        ops += path / sp if path >= 0 and sp > 0 else 0
+    # B114: 2-я внутренняя проточка (скорость B58: соседняя колонка станка!),
+    # та же защита от отрицательной длины — B99
     B84 = mceil(t - b, st) if b > 0 else 0
     B85 = mceil(c / 2, st)
     if Dw > 0 and d > 0 and (B84 + B85) > 0:
+        path = ((Dw - d) / 2) * (B84 + B85)
         af = data.FEEDRATE_DATA[data.APPROX_FEED_COL.get(m, m)][3]
         sp = af * rpm_col(data.APPROX_RPM_COL.get(m, m), (Dw + d) / 2)
-        ops += (((Dw - d) / 2) * (B84 + B85)) / sp if sp > 0 else 0
+        ops += path / sp if path >= 0 and sp > 0 else 0
     # B117/B118: компенсатор (обороты на ступень диаметра ниже)
     if Dm1 > 0 and d > 0 and B83 > 0:
         sp = ff * rpm_step_down(m, (Dm1 + d) / 2)
