@@ -15,7 +15,9 @@
   - резьба считается и для "Втулки резьбовой", а не только для "Втулки";
   - коэффициент вспомогательных работ берется билинейной интерполяцией, а не
     ступенькой (в B91 приблизительный HLOOKUP). Реплика зовет ту же
-    calc.get_AWC_coeff(), поэтому обе стороны сравнения меняются вместе.
+    calc.get_AWC_coeff(), поэтому обе стороны сравнения меняются вместе;
+  - станок выбирается по диаметру ЗАГОТОВКИ D1, а не готовой детали D
+    (в B78 — по D), потому что в патрон зажимается заготовка.
 """
 import math
 import os
@@ -29,10 +31,11 @@ from core import data
 
 random.seed(42)
 
-def machine_by_D(D):
-    """Excel B78: первый станок, чей верхний предел не меньше D."""
+def machine_by_D1(D1):
+    """Первый станок, чей верхний предел не меньше диаметра ЗАГОТОВКИ.
+    ОТЛИЧИЕ ОТ .xlsm: в B78 выбор идет по диаметру готовой детали D."""
     for name, (_lo, hi) in sorted(data.RANGES_DATA.items(), key=lambda kv: kv[1][1]):
-        if D <= hi: return name
+        if D1 <= hi: return name
     return None
 
 def rpm_col(col, dia):
@@ -67,7 +70,7 @@ def excel_total(ptype, p):
     Dw = p.get('Dw', p.get('DW', 0)); b = p.get('b', 0); c = p.get('c', 0)
     Dm1 = p.get('Dm1', 0); dm2 = p.get('dm2', 0); K = p.get('K', 0)
     Dk = p.get('Dk', 0); P = p.get('P', 0); n = p.get('n', 0); X = p.get('X', 0)
-    m = machine_by_D(D)
+    m = machine_by_D1(D1)
     sl, st, fl, ff, chs = data.FEEDRATE_DATA[m]
     B55 = fl * rpm_col(m, (D1 + D) / 2)
     B54 = ff * rpm_col(m, (D1 + D2) / 2 if D2 > 0 else D1)

@@ -286,15 +286,18 @@ class AppPresenter:
         )
 
         # 2. Расчет для альтернативных станков: станок подходит, если у него
-        # заданы подачи (в таблице норм) и есть обороты в диапазоне диаметра D
-        D = float(raw_data.get('D', 0) or 0)
+        # заданы подачи (в таблице норм) и есть обороты в диапазоне диаметра
+        # ЗАГОТОВКИ — по нему же выбирается и основной станок, ведь в патрон
+        # зажимается заготовка. D1 берем из расчета: он мог быть получен там
+        # из припуска по толщине листа, а не введен на экране.
+        D1 = float(main_res.get('blank_D1', 0) or raw_data.get('D1', 0) or 0)
         alt_machines = []
         for name, (diams, rpms) in data.TURNING_DATA.items():
             if name == main_res['machine']:
                 continue
             feeds = data.FEEDRATE_DATA.get(name, [0, 0, 0, 0, 0])
             covered = [dm for dm, r in zip(diams, rpms) if r > 0]
-            if feeds[2] > 0 and covered and min(covered) <= D <= max(covered):
+            if feeds[2] > 0 and covered and min(covered) <= D1 <= max(covered):
                 alt_machines.append(name)
 
         if alt_machines:
