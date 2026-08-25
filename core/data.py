@@ -240,6 +240,18 @@ def _active_norms_path():
         return _my_norms_file_path()
     return _norms_file_path()
 
+
+def my_norms_exist():
+    """Есть ли на этом компьютере личный файл норм. Если его нет, выбор
+    источника "мои" молча откатывается на общие — см. _active_norms_path()."""
+    return _os.path.exists(_my_norms_file_path())
+
+
+def active_norms_path():
+    """Файл норм, по которому РЕАЛЬНО ведутся расчеты (с учетом отката
+    на общие нормы, когда личного файла еще нет)."""
+    return _active_norms_path()
+
 def _to_float(val):
     try:
         return float(val or 0)
