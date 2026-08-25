@@ -13,7 +13,7 @@ a = Analysis(
     binaries=[],
     datas=[('pics', 'pics'), ('core', 'core'), ('ui', 'ui'),
            ('turning', 'turning'), ('turningotp', 'turningotp'),
-           ('icon.ico', '.')],
+           ('icon.ico', '.'), ('изменения.txt', '.')],
     hiddenimports=hiddenimports,
     hookspath=[],
     hooksconfig={},
