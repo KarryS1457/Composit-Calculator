@@ -3,6 +3,8 @@ import sys
 import tkinter as tk
 from tkinter import messagebox  # Вынесли импорт наверх по стандарту PEP 8
 
+from core.updater import IS_BETA, VERSION
+
 
 def _resource_path(name):
     """Путь к файлу ресурса (icon.ico и т.п.) — как рядом со скриптом
@@ -14,8 +16,13 @@ def _resource_path(name):
 class MainView(tk.Tk):
     def __init__(self):
         super().__init__()
-        # Базовые настройки окна
-        self.title("Калькулятор Composit")
+        # Базовые настройки окна. У беты это видно прямо в заголовке окна и на
+        # панели задач — чтобы ее расчеты не приняли за рабочие.
+        if IS_BETA:
+            self.title(f"Калькулятор Composit — БЕТА {VERSION} — НОВЫЕ НОРМЫ, "
+                       f"НЕ ДЛЯ РАБОТЫ")
+        else:
+            self.title("Калькулятор Composit")
         self.geometry("700x850")
         self.minsize(400, 650)
 

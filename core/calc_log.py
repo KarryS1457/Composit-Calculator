@@ -58,15 +58,21 @@ def _pc_id():
 
 def _shared_log_path():
     """Файл этого ПК в общей сетевой папке. Создает папку 'логи' при
-    необходимости. Бросает OSError, если папка недоступна."""
+    необходимости. Бросает OSError, если папка недоступна.
+
+    Бета-сборка пишет в ОТДЕЛЬНЫЙ файл: она считает по другим нормам, и
+    смешивать ее расчеты с рабочими в одном журнале нельзя — иначе по этому
+    журналу нельзя будет ни считать статистику, ни подбирать коэффициенты."""
     host, user = _pc_id()
     os.makedirs(updater.logs_dir(), exist_ok=True)
-    return os.path.join(updater.logs_dir(), f"{host}_{user}.log")
+    suffix = "_beta" if updater.IS_BETA else ""
+    return os.path.join(updater.logs_dir(), f"{host}_{user}{suffix}.log")
 
 
 def _local_log_path():
     """Запасной локальный файл журнала."""
-    return os.path.join(_local_data_dir(), "расчеты.log")
+    name = "расчеты_beta.log" if updater.IS_BETA else "расчеты.log"
+    return os.path.join(_local_data_dir(), name)
 
 
 def log_file_path():
@@ -113,8 +119,9 @@ def log_calc(kind, title, inputs, result_text, steps=None):
         host, user = _pc_id()
         indented = "\n".join("    " + line
                              for line in str(result_text).splitlines())
+        build = f" | СБОРКА: БЕТА {updater.VERSION}" if updater.IS_BETA else ""
         block = (
-            f"===== {stamp} | {kind} | ПК: {host}/{user} =====\n"
+            f"===== {stamp} | {kind} | ПК: {host}/{user}{build} =====\n"
             f"Изделие: {title}\n"
             f"Ввод: {_fmt_inputs(inputs)}\n"
         )

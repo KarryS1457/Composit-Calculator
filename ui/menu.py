@@ -1,16 +1,26 @@
 import tkinter as tk
 
-from core.updater import VERSION
+from core.updater import IS_BETA, VERSION
 
 
 class MainMenu(tk.Frame):
     def __init__(self, parent, presenter):
         super().__init__(parent)
         self.presenter = presenter  # Сохраняем ссылку на презентер
-        
+
         # Заголовок меню
-        tk.Label(self, text="ГЛАВНОЕ МЕНЮ", 
+        tk.Label(self, text="ГЛАВНОЕ МЕНЮ",
                  font=("Arial", 16, "bold"), fg="#2c3e50").pack(pady=(0, 30))
+
+        if IS_BETA:
+            banner = tk.Frame(self, bg="#c0392b")
+            banner.pack(fill="x", pady=(0, 20))
+            tk.Label(banner, bg="#c0392b", fg="white", justify="center",
+                     font=("Arial", 10, "bold"), wraplength=600, pady=8,
+                     text=("БЕТА-ВЕРСИЯ — ИСПРАВЛЕННЫЕ НОРМЫ\n"
+                           "Время считается по новым формулам и заметно ниже, "
+                           "чем в рабочей версии.\nНе используйте эти цифры для "
+                           "выдачи заданий и расценок.")).pack(fill="x")
 
         # Кнопка СВАРКА
         self.btn_weld = tk.Button(
