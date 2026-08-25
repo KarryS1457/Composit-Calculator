@@ -5,13 +5,15 @@ from tkinter import messagebox
 
 from PIL import Image, ImageTk
 
-from core import calc_log, data, updater
+from core import calc_log, changelog, data, updater
 from core import calculations as calc
+from core.logger import log
 from ui.menu import MainMenu
 from ui.tab_lathe import TabLathe
 from ui.tab_lathe_otp import TabLatheOtp
 from ui.tab_norms import TabNorms
 from ui.tab_weld import TabWeld
+from ui.whatsnew import WhatsNew
 
 # Добавь импорты для других табов, когда переделаешь их:
 # from ui.tab_turning import TabTurning
@@ -36,7 +38,24 @@ class AppPresenter:
         """Запуск приложения"""
         self.show_main_menu()
         self._check_updates_in_background()
+        # Список изменений показываем с задержкой, чтобы главное окно успело
+        # отрисоваться и окно "Что нового" встало по его центру
+        self.view.after(400, self._show_whatsnew)
         self.view.mainloop()
+
+    def _show_whatsnew(self):
+        """Один раз после обновления показывает, что изменилось.
+
+        Любая ошибка здесь гасится: список изменений не должен мешать
+        работать с программой."""
+        try:
+            entries = changelog.pending_entries()
+            if entries:
+                WhatsNew(self.view, entries, updater.VERSION)
+                log.info(f"Показан список изменений для версии {updater.VERSION}")
+            changelog.set_seen_version()
+        except Exception as e:
+            log.warning(f"Не удалось показать список изменений: {e}")
 
     # --- АВТООБНОВЛЕНИЕ ---
 
