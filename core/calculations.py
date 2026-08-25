@@ -34,6 +34,30 @@ def get_val_by_thickness(thickness, x_list, y_list):
             return y1 + (thickness - x1) * (y2 - y1) / (x2 - x1)
     return y_list[-1]
 
+def chamfer_length(size, angle_deg):
+    """Длина реза фаски: размер фаски, деленный на косинус ее угла.
+
+    Угол приходит с экрана в ГРАДУСАХ. В эталонной таблице (лист "Получение
+    данных для расчета", строка B129) стоит просто COS(угол), а COS в Excel
+    принимает радианы — RADIANS() в формуле забыт. Из-за этого фаска 45°
+    считалась как 9.52 мм вместо 7.07, фаска 30° — как 32.41 мм вместо 5.77,
+    а начиная с 58° косинус уходил в минус и длина фаски получалась
+    ОТРИЦАТЕЛЬНОЙ, уменьшая общее время обработки.
+
+    Угол вне диапазона 0..90 для фаски бессмыслен; такой угол игнорируем и
+    берем сам размер фаски (как при угле 0), чтобы не получить всплеск или
+    отрицательное значение.
+    """
+    if size <= 0:
+        return 0.0
+    if not 0 <= angle_deg < 90:
+        if angle_deg:
+            log.warning(f"Угол фаски {angle_deg}° вне диапазона 0..90 — "
+                        f"длина фаски взята равной ее размеру ({size} мм)")
+        return float(size)
+    return size / math.cos(math.radians(angle_deg))
+
+
 def get_AWC_coeff(target_d, target_s):
     # Таблицы читаем через data.*, а не через "from core.data import ...":
     # редактор норм подменяет их в core.data на лету (save_norms /
@@ -205,14 +229,29 @@ def calculate_lathe_time(item_type, p, m_info=None, force_machine=None):
     else:
         # Определяем станок по готовому диаметру детали D (как в эталонном Excel,
         # лист "Получение данных для расчета" B78: выбор идёт строго по D).
-        current_machine = m_info.get('machine')
-        for name, (low, high) in data.RANGES_DATA.items():
-            if low <= D <= high:
-                if current_machine != name:
-                    log.warning(f"АВТОКОРРЕКЦИЯ: Станок изменен с {current_machine} на {name} "
-                                f"(диаметр детали {D} мм)")
+        #
+        # Берем первый станок, чей ВЕРХНИЙ предел не меньше D, перебирая их от
+        # меньшего к большему — это ровно та же логика, что и вложенные
+        # IF(D>250; IF(D>500; ...)) в B78. Сравнивать с нижней границей нельзя:
+        # в нормах диапазоны заданы целыми (0-250, 251-500, 501-800, 801-2500),
+        # и проверка "low <= D <= high" теряла дробные диаметры в стыках —
+        # D=250.5, 500.5 и 800.5 не попадали ни в один диапазон, и расчет
+        # завершался сообщением "Станок не найден".
+        previous_machine = m_info.get('machine')
+        current_machine = None
+        for name, (_low, high) in sorted(data.RANGES_DATA.items(),
+                                         key=lambda kv: kv[1][1]):
+            if D <= high:
                 current_machine = name
                 break
+        if current_machine is None:
+            # Диаметр больше самого крупного станка — в таблице тут
+            # "ошибка отсутствуют станки больших диаметров"
+            log.warning(f"Станок не подобран: диаметр детали {D} мм больше "
+                        f"максимального диаметра всех станков")
+        elif previous_machine != current_machine:
+            log.warning(f"АВТОКОРРЕКЦИЯ: Станок изменен с {previous_machine} на "
+                        f"{current_machine} (диаметр детали {D} мм)")
 
     # Обновляем технологические параметры под актуальный станок
     m_params = data.FEEDRATE_DATA.get(current_machine, [3, 3, 0.15, 0.25, 500])
@@ -273,12 +312,11 @@ def calculate_lathe_time(item_type, p, m_info=None, force_machine=None):
         return (abs(length) * passes_t) / speed
 
     def get_chamfer_time(chamfers, angles=None):
-        """chamfers: list of chamfer sizes (mm). angles: list of angles (same units as Excel cell,
-        treated as radians directly — matches Excel COS(angle) behaviour). Default angle=0 (cos=1)."""
+        """chamfers: размеры фасок (мм), angles: углы фасок в ГРАДУСАХ."""
         if angles is None:
             angles = [0] * len(chamfers)
         total = sum(
-            ch / math.cos(ang) for ch, ang in zip(chamfers, angles) if ch > 0
+            chamfer_length(ch, ang) for ch, ang in zip(chamfers, angles) if ch > 0
         )
         return total / chamfer_speed if chamfer_speed > 0 else 0
 
@@ -408,9 +446,11 @@ def calculate_lathe_time(item_type, p, m_info=None, force_machine=None):
         sp_face = feed_speed((D1 + D2) / 2 if D2 > 0 else D1)
         B115 = ((D1 - D2) * B81) / sp_face if sp_face > 0 else 0
 
-        # B116: фаски ch1-ch10 (Excel B129:K129, каждая длина ROUND(...,2))
+        # B116: фаски ch1-ch10 (Excel B129:K129, каждая длина ROUND(...,2)).
+        # Угол считается в градусах — см. chamfer_length().
         ch_total = sum(
-            round(to_float(p.get(f'ch{i}', 0)) / math.cos(to_float(p.get(f'angle_ch{i}', 0))), 2)
+            round(chamfer_length(to_float(p.get(f'ch{i}', 0)),
+                                 to_float(p.get(f'angle_ch{i}', 0))), 2)
             for i in range(1, 11) if to_float(p.get(f'ch{i}', 0)) > 0
         )
         B116 = ch_total / chamfer_speed if chamfer_speed > 0 else 0
@@ -433,7 +473,13 @@ def calculate_lathe_time(item_type, p, m_info=None, force_machine=None):
         # из соседней колонки (16к20 -> обороты 0Л52, CK5126 -> данные 1М65)
         # Строка так же защищена в Excel (B99), как и B98 выше: при Dw < d
         # длина расточки отрицательная и строка дает 0, а не минусовое время.
-        B84 = passes_if(t - b_val, siem_transverse) if b_val > 0 else 0
+        #
+        # B28 = IFERROR(t - b; 0). Ноль тут дает только ОТСУТСТВИЕ параметра
+        # у типа изделия (MATCH -> #Н/Д). Если поле на экране есть, но пустое,
+        # таблица считает t - 0 = t, то есть проходы на всю толщину детали.
+        # Прежнее условие "b > 0" в этом случае глушило строку целиком.
+        B28 = (t - b_val) if 'b' in p else 0
+        B84 = passes_if(B28, siem_transverse)
         B85 = passes_if(c_val / 2, siem_transverse)
         B114 = 0
         if Dw_val > 0 and d > 0 and (B84 + B85) > 0:
@@ -496,12 +542,24 @@ def calculate_lathe_time(item_type, p, m_info=None, force_machine=None):
             sp = feed_speed(Dk_val)
             B121 = (P_val * n_val) / sp if sp > 0 else 0
 
-        # B122: внешняя проточка по габариту t — Excel добавляет ее ВСЕМ типам (F18/B106)
-        B122 = (t * B80) / speed_long if speed_long > 0 else 0
+        # B122 эталонной таблицы ("Общий путь наружнего точения (Штифт)",
+        # F18/B106) здесь СОЗНАТЕЛЬНО не считается. Это то же самое наружное
+        # продольное точение, что и B111: те же проходы B80 по тому же припуску
+        # (D1-D)/2 и та же скорость B55, отличается только длина — габарит t
+        # вместо толщины заготовки S. Проверка геометрии не пропускает t > S,
+        # значит путь по S всегда не меньше пути по t и уже включает его,
+        # а таблица добавляла обе строки всем типам изделий подряд.
 
-        # B123: проточка по глубине a; глубина проходов (D-Dc)/2, без Dc — D/2 (F19/F20/B88)
+        # B123: проточка по глубине a на глубину (D-Dc)/2 (F19/F20/B88).
+        # Второй наружный диаметр Dc есть только у штифта. У остальных типов
+        # IFERROR в F20 подставлял ноль, и таблица считала съем "до нулевого
+        # диаметра": для фланца D=1170 это 585 мм на сторону и 98 проходов —
+        # около четверти всего машинного времени из ниоткуда. Вдобавок сам
+        # параметр a у фланцев уже задействован в B113, где задает число
+        # проходов внутренней проточки. Считаем строку только когда есть
+        # реальный второй диаметр, с которого идет съем.
         B123 = 0
-        if a > 0:
+        if a > 0 and Dc > 0 and D > Dc:
             B88 = passes_if((D - Dc) / 2, siem_long)
             B123 = (a * B88) / speed_long if speed_long > 0 else 0
 
@@ -513,7 +571,7 @@ def calculate_lathe_time(item_type, p, m_info=None, force_machine=None):
             B125 = (((Dw_val - Dk_val) / 2) * B89) / sp if sp > 0 else 0
 
         total_min = (B111 + B112 + B113 + B114 + B115 + B116 + B117 + B118 +
-                     B119 + B120 + B121 + B122 + B123 + B125)
+                     B119 + B120 + B121 + B123 + B125)
 
         components += [
             ("Наружное точение", B111),
@@ -527,15 +585,19 @@ def calculate_lathe_time(item_type, p, m_info=None, force_machine=None):
             ("Сферическая часть", B119),
             ("Внешняя проточка (ch5)", B120),
             ("Торцевые канавы", B121),
-            ("Внешняя проточка по габариту t", B122),
             ("Проточка по глубине a", B123),
             ("Внешняя канава втулки", B125),
         ]
 
-        # Резьба (E3, отдельной строкой): в таблице считается только для "Втулки" —
-        # лишь у нее есть флаг "Внеш.=1/Внутр.=0"; у "Втулки резьбовой" параметры
-        # флага нет, и формула E3 дает 0 (IFERROR) — повторяем поведение таблицы.
-        if item_type == "bushing" and to_float(p.get('H', 0)) > 0 and to_float(p.get('L', 0)) > 0:
+        # Резьба (E3, отдельной строкой).
+        # В эталонной таблице резьба считалась ТОЛЬКО для "Втулки": лист
+        # "Расчет резьбы" требует флаг "Внеш. Рез.=1/Внутр. Рез.=0", а в списке
+        # параметров "Втулки резьбовой" его нет — MATCH давал #Н/Д и E3
+        # обнулялась. То есть деталь, названная резьбовой, нормировалась вообще
+        # без резьбы, хотя шаг и длина на экране запрашивались. Считаем резьбу
+        # для обоих типов; флаг теперь есть и на экране втулки резьбовой.
+        if (item_type in ("bushing", "threaded_bushing")
+                and to_float(p.get('H', 0)) > 0 and to_float(p.get('L', 0)) > 0):
             thread_min = get_thread_time(
                 th_diameter=to_float(p.get('M', D)),
                 th_pitch=to_float(p.get('H', 0)),

@@ -4,6 +4,15 @@
 Реплика выверена по реальному пересчету файла (LibreOffice/EXCEL) на
 50+ случайных изделиях всех 13 типов: расхождение 0.00-0.32%.
 Запуск: python tests/test_excel_match.py
+
+ВНИМАНИЕ. Реплика повторяет формулы таблицы НЕ буквально: в нее внесены те же
+осознанные исправления ошибок нормирования, что и в программу. Каждое помечено
+пометкой "ОТЛИЧИЕ ОТ .xlsm" по месту. Пока эти же правки не внесены в сам
+.xlsm, файл и программа будут давать разные цифры — это ожидаемо:
+  - угол фаски считается в градусах, а не в радианах (в B129 забыт RADIANS);
+  - строка B122 не считается: дублирует наружное точение B111;
+  - строка B123 считается только при заданном втором диаметре Dc;
+  - резьба считается и для "Втулки резьбовой", а не только для "Втулки".
 """
 import math
 import os
@@ -18,9 +27,10 @@ from core import data
 random.seed(42)
 
 def machine_by_D(D):
-    for name, (lo, hi) in data.RANGES_DATA.items():
-        if lo <= D <= hi: return name
-    return 'CK5126'
+    """Excel B78: первый станок, чей верхний предел не меньше D."""
+    for name, (_lo, hi) in sorted(data.RANGES_DATA.items(), key=lambda kv: kv[1][1]):
+        if D <= hi: return name
+    return None
 
 def rpm_col(col, dia):
     diams, rpms = data.TURNING_DATA[col]
@@ -64,8 +74,9 @@ def excel_total(ptype, p):
     ops = (S * B80) / B55 if B55 > 0 else 0                       # B111
     ops += (t * B82) / B55 if d > 0 and B55 > 0 else 0            # B112
     ops += ((D1 - D2) * B81) / B54 if B54 > 0 else 0              # B115
-    # B116: фаски (каждая длина округляется до 2 знаков, скорость 500 мм/мин)
-    chl = sum(round(p.get(f'ch{i}', 0) / math.cos(p.get(f'angle_ch{i}', 0)), 2)
+    # B116: фаски (каждая длина округляется до 2 знаков, скорость 500 мм/мин).
+    # ОТЛИЧИЕ ОТ .xlsm: угол в градусах (в B129 стоит COS(угол) без RADIANS)
+    chl = sum(round(calc.chamfer_length(p.get(f'ch{i}', 0), p.get(f'angle_ch{i}', 0)), 2)
               for i in range(1, 11) if p.get(f'ch{i}', 0) > 0)
     ops += chl / chs
     # B113: 1-я внутренняя проточка. B98 отбрасывает строку при отрицательной
@@ -77,7 +88,8 @@ def excel_total(ptype, p):
         ops += path / sp if path >= 0 and sp > 0 else 0
     # B114: 2-я внутренняя проточка (скорость B58: соседняя колонка станка!),
     # та же защита от отрицательной длины — B99
-    B84 = mceil(t - b, st) if b > 0 else 0
+    # B28 = IFERROR(t - b; 0): ноль только при отсутствии параметра у типа
+    B84 = mceil(t - b, st) if 'b' in p else 0
     B85 = mceil(c / 2, st)
     if Dw > 0 and d > 0 and (B84 + B85) > 0:
         path = ((Dw - d) / 2) * (B84 + B85)
@@ -119,11 +131,15 @@ def excel_total(ptype, p):
     if P * n > 0:
         sp = ff * rpm_col(m, Dk)
         ops += (P * n) / sp if sp > 0 else 0
-    # B122: внешняя проточка по габариту t — для ВСЕХ типов
-    ops += (t * B80) / B55 if B55 > 0 else 0
-    # B123: проточка по глубине a, глубина проходов (D-Dc)/2 (без Dc -> D/2)
-    if a > 0:
-        B88 = mceil((D - p.get('Dc', 0)) / 2, sl)
+    # B122 (внешняя проточка по габариту t) НЕ считается.
+    # ОТЛИЧИЕ ОТ .xlsm: дублирует наружное точение B111 — те же проходы B80,
+    # та же скорость B55, длина t вместо S, а t > S не пропускает валидация.
+    # B123: проточка по глубине a, глубина проходов (D-Dc)/2.
+    # ОТЛИЧИЕ ОТ .xlsm: только при заданном Dc. Без него IFERROR давал Dc=0,
+    # и таблица считала съем до нулевого диаметра.
+    Dc = p.get('Dc', 0)
+    if a > 0 and Dc > 0 and D > Dc:
+        B88 = mceil((D - Dc) / 2, sl)
         ops += (a * B88) / B55 if B55 > 0 else 0
     # B125: внешняя канава втулки
     if X > 0 and Dw - Dk > 0:
@@ -132,8 +148,10 @@ def excel_total(ptype, p):
         ops += (((Dw - Dk) / 2) * B89) / sp if sp > 0 else 0
     total = ops * 60 * calc.get_AWC_coeff(D1, S)
     if p.get('insert_ring', 0) == 1: total *= 2
-    # E3: резьба отдельной строкой — в таблице считается только для "Втулки"
-    thr = excel_thread(p) if ptype == 'втулка' else 0
+    # E3: резьба отдельной строкой.
+    # ОТЛИЧИЕ ОТ .xlsm: в таблице резьба считалась только для "Втулки" (у
+    # "Втулки резьбовой" нет флага типа резьбы, MATCH давал #Н/Д -> E3 = 0)
+    thr = excel_thread(p) if ptype in ('втулка', 'втулка резьбовая') else 0
     return m, total + thr
 
 
@@ -155,8 +173,8 @@ def gen_case():
     d = max(20, D - rnd(40, 160, 10))
     D2 = max(10, d - rnd(6, 14, 2))
     p = {'D': D, 't': t, 'S': S, 'D1': D1,
-         'ch1': rnd(1, 3), 'angle_ch1': round(random.uniform(0.2, 0.8), 2),
-         'ch2': rnd(1, 2), 'angle_ch2': round(random.uniform(0.2, 0.8), 2)}
+         'ch1': rnd(1, 3), 'angle_ch1': random.choice([15, 30, 45, 60]),
+         'ch2': rnd(1, 2), 'angle_ch2': random.choice([15, 30, 45, 60])}
     if ptype not in ('круг', 'втулка', 'штифт'):
         p.update({'d': d, 'D2': D2})
     if ptype == 'втулка':
@@ -179,13 +197,14 @@ def gen_case():
         p.update({'DM': d + rnd(20, 60, 5), 'as': rnd(8, 25), 'RS': rnd(60, 150, 10),
                   'RA': rnd(30, 80, 5), 'A1': rnd(5, 25, 5)})
     if ptype == 'втулка резьбовая':
-        p.update({'M': rnd(20, 70, 5), 'H': random.choice([1.5, 2, 2.5, 3]), 'L': rnd(10, 40, 5)})
+        p.update({'M': rnd(20, 70, 5), 'H': random.choice([1.5, 2, 2.5, 3]),
+                  'L': rnd(10, 40, 5), 'th_pos': random.choice([0, 1])})
     if ptype == 'втулка':
         Dk_v = D - rnd(10, 30, 5)
         p.update({'Dw': Dk_v + rnd(4, 16, 2), 'Dk': Dk_v, 'X': rnd(3, 12), 'Y': rnd(3, 15),
                   'a': rnd(3, 12), 'M': rnd(20, 70, 5), 'H': random.choice([1.5, 2, 2.5]),
                   'L': rnd(10, 40, 5), 'th_pos': random.choice([0, 1]),
-                  'ch3': rnd(1, 2), 'angle_ch3': round(random.uniform(0.2, 0.8), 2)})
+                  'ch3': rnd(1, 2), 'angle_ch3': random.choice([15, 30, 45, 60])})
     if ptype == 'штифт':
         p.update({'Dc': max(10, D - rnd(20, 60, 10)), 'a': rnd(5, 30, 5)})
     return ptype, itype, p

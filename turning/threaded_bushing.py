@@ -34,6 +34,11 @@ class thread(tk.Frame):
         self.ent_M = self.add_entry(left_frame, "Диаметр резьбы M (мм):")
         self.ent_H = self.add_entry(left_frame, "Шаг резьбы H (мм):")
         self.ent_L = self.add_entry(left_frame, "Длина резьбы L (мм):")
+        # Тип резьбы задает обороты нарезания (внутренняя и внешняя режутся
+        # на разных режимах), поэтому спрашиваем его так же, как у "Втулки".
+        self.var_thpos = tk.IntVar(value=0)
+        tk.Checkbutton(left_frame, text="Резьба внешняя (иначе внутренняя)",
+                       variable=self.var_thpos).pack(anchor="w", pady=(0, 5))
 
         self.add_label(left_frame, "--- ПАРАМЕТРЫ ЗАГОТОВКИ ---", bold=True)
         self.ent_D1 = self.add_entry(left_frame, "Внешний диаметр заготовки D1 (мм):")
@@ -170,6 +175,7 @@ class thread(tk.Frame):
                 "M": float(self.ent_M.get() or 0),
                 "H": float(self.ent_H.get() or 0),
                 "L": float(self.ent_L.get() or 0),
+                "th_pos": self.var_thpos.get(),
                 "ch1": float(self.ent_ch1.get() or 0),
                 "angle_ch1": float(self.ent_angle_ch1.get() or 0),
                 "D1": float(self.ent_D1.get() or 0),
