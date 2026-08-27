@@ -216,13 +216,96 @@ class AppPresenter:
         s = int(seconds % 60)
         return f"{seconds:.2f} сек. ({minutes_float:.2f} мин. или {m}м {s}с)"
 
-    def _validate_geometry(self, raw_data):
+    # Изделия ОТПиР: пары "диаметр + длина участка" и порядок диаметров.
+    # У них своя геометрия, и наружный диаметр называется Dt (у оси — D).
+    # chain: диаметры должны идти по НЕвозрастанию, нулевые пропускаются.
+    _OTP_SHAPES = {
+        "axle": {
+            "outer": ("D", "Внешний диаметр D"),
+            "pairs": [("Dc", "c", "Диаметр проточки Dc", "Длина проточки c"),
+                      ("Dm", "m", "Диаметр проточки Dm", "Длина проточки m"),
+                      ("Da", "a", "Диаметр дна канавы Da", "Ширина канавы a")],
+            "chains": [[("D", "Внешний диаметр D"), ("Dc", "Проточка Dc"),
+                        ("Dm", "Проточка Dm"), ("Da", "Дно канавы Da")]],
+        },
+        "shaft": {
+            "outer": ("Dt", "Внешний диаметр Dt"),
+            "pairs": [("Dc1", "c1", "Диаметр проточки Dc1", "Длина проточки c1"),
+                      ("Dm1", "m1", "Диаметр проточки Dm1", "Длина проточки m1"),
+                      ("Dc2", "c2", "Диаметр проточки Dc2", "Длина проточки c2"),
+                      ("Dm2", "m2", "Диаметр проточки Dm2", "Длина проточки m2"),
+                      ("Da", "a", "Диаметр дна канавы Da", "Ширина канавы a")],
+            "chains": [[("Dt", "Внешний диаметр Dt"), ("Dc1", "Проточка Dc1"),
+                        ("Dm1", "Проточка Dm1"), ("Da", "Дно канавы Da")],
+                       [("Dt", "Внешний диаметр Dt"), ("Dc2", "Проточка Dc2"),
+                        ("Dm2", "Проточка Dm2")]],
+        },
+        "bearinghousing": {
+            "outer": ("Dt", "Внешний диаметр Dt"),
+            "pairs": [("Dc", "c", "Диаметр проточки Dc", "Длина проточки c")],
+            # расточки идут изнутри наружу: Dc меньше Dm, обе меньше наружного
+            "chains": [[("Dt", "Внешний диаметр Dt"), ("Dm", "Расточка Dm"),
+                        ("Dc", "Расточка Dc")]],
+        },
+    }
+    _OTP_SHAPES["axle2"] = _OTP_SHAPES["axle"]
+
+    def _validate_otp(self, item_type, f):
+        """Проверка геометрии изделий ОТПиР.
+
+        Раньше для них не работала ни одна проверка: общая функция смотрит на
+        параметр D, а экраны вала и корпуса передают Dt. Из-за этого невозможная
+        геометрия доходила до расчета и давала правдоподобное число или ровный
+        ноль без единого предупреждения."""
+        shape = self._OTP_SHAPES[item_type]
+        outer_key, outer_name = shape["outer"]
+        outer, D1, t, S = f(outer_key), f('D1'), f('t'), f('S')
+
+        if outer <= 0:
+            return f"ОШИБКА: Не задан «{outer_name}»."
+        if D1 > 0 and outer > D1:
+            return (f"ОШИБКА: «{outer_name}» не может быть больше внешнего "
+                    f"диаметра заготовки (D1).")
+        if S > 0 and t > S:
+            return ("ОШИБКА: Габарит детали (t) не может быть больше "
+                    "толщины заготовки (S).")
+
+        # Половина заполненной пары — самая частая опечатка. Забытый диаметр
+        # читается как ноль, и расчет снимает металл "до нулевого диаметра";
+        # забытая длина, наоборот, молча выбрасывает участок из расчета.
+        for d_key, l_key, d_name, l_name in shape["pairs"]:
+            dv, lv = f(d_key), f(l_key)
+            if dv > 0 and lv <= 0:
+                return (f"ОШИБКА: Задан «{d_name}», но не задана «{l_name}». "
+                        f"Заполните оба поля или очистите оба.")
+            if lv > 0 and dv <= 0:
+                return (f"ОШИБКА: Задана «{l_name}», но не задан «{d_name}». "
+                        f"Заполните оба поля или очистите оба.")
+            if dv > 0 and dv > outer:
+                return (f"ОШИБКА: «{d_name}» не может быть больше «{outer_name}».")
+
+        for chain in shape["chains"]:
+            prev_val, prev_name = None, None
+            for key, name in chain:
+                val = f(key)
+                if val <= 0:
+                    continue
+                if prev_val is not None and val > prev_val:
+                    return (f"ОШИБКА: «{name}» ({val:g} мм) не может быть больше "
+                            f"«{prev_name}» ({prev_val:g} мм).")
+                prev_val, prev_name = val, name
+        return None
+
+    def _validate_geometry(self, raw_data, item_type=None):
         """Проверка, что геометрия детали не превышает параметры заготовки."""
         def f(key):
             try:
                 return float(raw_data.get(key, 0) or 0)
             except (ValueError, TypeError):
                 return 0.0
+
+        if item_type in self._OTP_SHAPES:
+            return self._validate_otp(item_type, f)
 
         D, d, t = f('D'), f('d'), f('t')
         D1, D2, S = f('D1'), f('D2'), f('S')
@@ -276,7 +359,7 @@ class AppPresenter:
 
     def _process_turning_calculation(self, item_type, raw_data):
         """Единая логика для расчетов токарной обработки (обычной и ОТП)"""
-        error = self._validate_geometry(raw_data)
+        error = self._validate_geometry(raw_data, item_type)
         if error:
             self.current_screen.show_results(error)
             return

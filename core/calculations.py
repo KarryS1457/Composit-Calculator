@@ -685,7 +685,12 @@ def calculate_lathe_time(item_type, p, m_info=None, force_machine=None):
         t_turn_Dc2 = get_turning_time(Dt, Dc2, c2)
         t_turn_Dm2 = get_turning_time(Dc2, Dm2, m2)
         t_turn_Da = get_turning_time(Dm1, Da, a)
-        t_face = get_facing_time(D1, Dt, delta_S)
+        # Торцуется весь торец, а не кольцо между заготовкой и деталью.
+        # Раньше здесь стояло get_facing_time(D1, Dt, ...), то есть путь резца
+        # считался как D1-Dt: на детали Ø200 из заготовки Ø210 это давало 10 мм
+        # вместо 210 и торцовку в 21 раз дешевле, чем у оси и корпуса той же
+        # геометрии. Из трех изделий ОТПиР так считалось только у вала.
+        t_face = get_facing_time(D1, 0, delta_S)
         total_min = t_turn_out + t_turn_Dc1 + t_turn_Dm1 + t_turn_Dc2 + t_turn_Dm2 + t_turn_Da + t_face
         components += [
             ("Наружное точение (D1→Dt)", t_turn_out),
