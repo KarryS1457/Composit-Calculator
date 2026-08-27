@@ -59,7 +59,7 @@ IS_BETA = _is_beta_build()
 #
 # Пока раздается только бета-сборка (beta.spec), отдельным файлом
 # cscalc-beta.exe и в обход version.json.
-VERSION = "1.2.0-beta1" if IS_BETA else "1.2.0"
+VERSION = "1.2.0-beta1" if IS_BETA else "1.2.1"
 UPDATE_DIR = r"\\storage\ФАЙЛООБМЕННИК\Сасин\updates"
 VERSION_FILE = "version.json"
 
