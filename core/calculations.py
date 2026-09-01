@@ -269,9 +269,26 @@ def calculate_lathe_time(item_type, p, m_info=None, force_machine=None):
                 break
         if current_machine is None:
             # Заготовка больше самого крупного станка — в таблице тут
-            # "ошибка отсутствуют станки больших диаметров"
-            log.warning(f"Станок не подобран: диаметр заготовки {final_D1} мм "
-                        f"больше максимального диаметра всех станков")
+            # "ошибка отсутствуют станки больших диаметров".
+            #
+            # Раньше расчет на этом не останавливался: FEEDRATE_DATA.get(None, ...)
+            # отдавал запасные подачи, и наружу уходило правдоподобное число при
+            # machine=None. Экран это отлавливал, но любой другой вызов (подбор
+            # альтернативных станков, журнал, внешний скрипт) получал молча
+            # неверную норму. Теперь возвращаем явную ошибку.
+            максимум = max((h for _l, h in data.RANGES_DATA.values()), default=0)
+            текст = (f"ОШИБКА: нет станка под заготовку Ø{final_D1:g} мм — "
+                     f"максимальный диаметр обработки {максимум:g} мм.")
+            log.error(текст)
+            return {
+                "time_sec": 0.0,
+                "machine": None,
+                "rpm": 0,
+                "blank_D1": final_D1,
+                "thread_sec": 0.0,
+                "error": текст,
+                "steps": [текст],
+            }
         elif previous_machine != current_machine:
             log.warning(f"АВТОКОРРЕКЦИЯ: Станок изменен с {previous_machine} на "
                         f"{current_machine} (диаметр заготовки {final_D1} мм)")
@@ -334,14 +351,36 @@ def calculate_lathe_time(item_type, p, m_info=None, force_machine=None):
         passes_t = max(2, math.ceil(radial_depth / siem))
         return (abs(length) * passes_t) / speed
 
-    def get_chamfer_time(chamfers, angles=None):
-        """chamfers: размеры фасок (мм), angles: углы фасок в ГРАДУСАХ."""
+    def chamfer_feed_rate(diameter):
+        """Минутная подача на фаске, мм/мин.
+
+        Раньше стояла постоянная chamfer_speed (500 мм/мин у всех станков), и
+        время фаски не зависело от диаметра детали вовсе: фаска 3x45 на Ø50 и
+        на Ø1200 обе считались за секунду. Физически резец идет по конусу, пока
+        деталь вращается, поэтому минутная подача равна поперечной подаче,
+        умноженной на обороты ТОГО диаметра, где фаска снимается.
+
+        chamfer_speed из таблицы норм остается верхним пределом: он задает
+        предельную скорость резания фаски и не дает разогнаться на мелких
+        диаметрах, где обороты высокие.
+        """
+        rate = feed_face * get_rpm_for_diam(diameter)
+        if chamfer_speed > 0:
+            rate = min(rate, chamfer_speed)
+        return rate
+
+    def get_chamfer_time(chamfers, angles=None, diameter=None):
+        """chamfers: размеры фасок (мм), angles: углы фасок в ГРАДУСАХ.
+
+        diameter — диаметр, на котором снимается фаска. Экраны не спрашивают
+        его отдельно, поэтому по умолчанию берем наружный диаметр детали."""
         if angles is None:
             angles = [0] * len(chamfers)
         total = sum(
             chamfer_length(ch, ang) for ch, ang in zip(chamfers, angles) if ch > 0
         )
-        return total / chamfer_speed if chamfer_speed > 0 else 0
+        rate = chamfer_feed_rate(diameter if diameter else (D or final_D1))
+        return total / rate if rate > 0 else 0
 
 
     def get_thread_time(th_diameter, th_pitch, th_lenght, th_pos):
@@ -476,7 +515,10 @@ def calculate_lathe_time(item_type, p, m_info=None, force_machine=None):
                                  to_float(p.get(f'angle_ch{i}', 0))), 2)
             for i in range(1, 11) if to_float(p.get(f'ch{i}', 0)) > 0
         )
-        B116 = ch_total / chamfer_speed if chamfer_speed > 0 else 0
+        # Минутная подача берется по диаметру детали, а не постоянной 500 мм/мин
+        # (см. chamfer_feed_rate): время фаски должно расти с диаметром.
+        _ch_rate = chamfer_feed_rate(D or final_D1)
+        B116 = ch_total / _ch_rate if _ch_rate > 0 else 0
 
         # B113: 1-я внутренняя проточка DM, проходы по глубине (a+E)/2 (B5/B6/B83).
         # Excel B98 обнуляет строку при отрицательной длине расточки (Dm < d):
